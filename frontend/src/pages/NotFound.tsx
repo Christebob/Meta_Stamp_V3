@@ -37,7 +37,10 @@ function NotFound(): JSX.Element {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
       {/* Large 404 error code display */}
-      <div className="text-9xl font-bold text-gray-300 select-none" aria-hidden="true">
+      <div
+        className="text-9xl font-bold text-gray-300 select-none"
+        aria-hidden="true"
+      >
         404
       </div>
 
