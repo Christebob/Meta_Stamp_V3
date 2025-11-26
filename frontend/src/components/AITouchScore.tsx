@@ -92,11 +92,16 @@ const SCORE_COLORS = {
 } as const;
 
 /**
+ * Type alias for score color configuration
+ */
+type ScoreColorConfig = typeof SCORE_COLORS[keyof typeof SCORE_COLORS];
+
+/**
  * Determines the color scheme based on score value
  * @param score - The score value (0-100)
  * @returns Color configuration object
  */
-function getScoreColors(score: number): typeof SCORE_COLORS.low {
+function getScoreColors(score: number): ScoreColorConfig {
   if (score < 30) {
     return SCORE_COLORS.low;
   }
