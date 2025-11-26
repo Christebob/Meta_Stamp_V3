@@ -21,7 +21,7 @@ Example Usage:
     from app.models import Asset, User, WalletBalance, Transaction
     from app.models import AITouchValueCalculation, Fingerprint
     from app.models import FileType, UploadStatus, TransactionType
-    
+
     # Create a new asset
     asset = Asset(
         user_id="user123",
@@ -32,7 +32,7 @@ Example Usage:
         s3_key="uploads/artwork.png",
         s3_bucket="meta-stamp"
     )
-    
+
     # Create a transaction
     transaction = Transaction(
         user_id="user123",
@@ -51,54 +51,26 @@ __version__ = "1.0.0"
 # =============================================================================
 # ASSET MODELS
 # =============================================================================
+# =============================================================================
+# ANALYTICS MODELS
+# =============================================================================
+from app.models.analytics import (
+    # Constants
+    EQUITY_FACTOR,
+    AITouchValueCalculation,
+)
 from app.models.asset import (
+    # Constants
+    DANGEROUS_EXTENSIONS,
+    MAX_FILE_SIZE_BYTES,
+    SUPPORTED_EXTENSIONS,
+    SUPPORTED_MIME_TYPES,
     Asset,
     AssetCreate,
     AssetResponse,
     FileType,
     ProcessingStatus,
     UploadStatus,
-    # Constants
-    DANGEROUS_EXTENSIONS,
-    MAX_FILE_SIZE_BYTES,
-    SUPPORTED_EXTENSIONS,
-    SUPPORTED_MIME_TYPES,
-)
-
-# =============================================================================
-# USER MODELS
-# =============================================================================
-from app.models.user import (
-    TokenResponse,
-    User,
-    UserCreate,
-    UserLogin,
-    UserResponse,
-    UserUpdate,
-    # Constants
-    SUPPORTED_PLATFORMS,
-)
-
-# =============================================================================
-# WALLET MODELS
-# =============================================================================
-from app.models.wallet import (
-    Transaction,
-    TransactionStatus,
-    TransactionType,
-    WalletBalance,
-    # Constants
-    MINIMUM_PAYOUT_THRESHOLD,
-    SUPPORTED_CURRENCIES,
-)
-
-# =============================================================================
-# ANALYTICS MODELS
-# =============================================================================
-from app.models.analytics import (
-    AITouchValueCalculation,
-    # Constants
-    EQUITY_FACTOR,
 )
 
 # =============================================================================
@@ -111,56 +83,75 @@ from app.models.fingerprint import (
 )
 
 # =============================================================================
+# USER MODELS
+# =============================================================================
+from app.models.user import (
+    # Constants
+    SUPPORTED_PLATFORMS,
+    TokenResponse,
+    User,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    UserUpdate,
+)
+
+# =============================================================================
+# WALLET MODELS
+# =============================================================================
+from app.models.wallet import (
+    # Constants
+    MINIMUM_PAYOUT_THRESHOLD,
+    SUPPORTED_CURRENCIES,
+    Transaction,
+    TransactionStatus,
+    TransactionType,
+    WalletBalance,
+)
+
+
+# =============================================================================
 # PUBLIC API
 # =============================================================================
 
 __all__ = [
-    # Version
-    "__version__",
-    
+    "DANGEROUS_EXTENSIONS",
+    # Analytics constants
+    "EQUITY_FACTOR",
+    # Asset constants
+    "MAX_FILE_SIZE_BYTES",
+    # Wallet constants
+    "MINIMUM_PAYOUT_THRESHOLD",
+    "SUPPORTED_CURRENCIES",
+    "SUPPORTED_EXTENSIONS",
+    "SUPPORTED_MIME_TYPES",
+    # User constants
+    "SUPPORTED_PLATFORMS",
+    # Analytics models
+    "AITouchValueCalculation",
     # Asset models and enums
     "Asset",
     "AssetCreate",
     "AssetResponse",
     "FileType",
-    "UploadStatus",
+    # Fingerprint models and enums
+    "Fingerprint",
+    "FingerprintProcessingStatus",
+    "FingerprintType",
     "ProcessingStatus",
-    
-    # Asset constants
-    "MAX_FILE_SIZE_BYTES",
-    "SUPPORTED_EXTENSIONS",
-    "SUPPORTED_MIME_TYPES",
-    "DANGEROUS_EXTENSIONS",
-    
+    "TokenResponse",
+    "Transaction",
+    "TransactionStatus",
+    "TransactionType",
+    "UploadStatus",
     # User models
     "User",
     "UserCreate",
     "UserLogin",
     "UserResponse",
     "UserUpdate",
-    "TokenResponse",
-    
-    # User constants
-    "SUPPORTED_PLATFORMS",
-    
     # Wallet models and enums
     "WalletBalance",
-    "Transaction",
-    "TransactionType",
-    "TransactionStatus",
-    
-    # Wallet constants
-    "MINIMUM_PAYOUT_THRESHOLD",
-    "SUPPORTED_CURRENCIES",
-    
-    # Analytics models
-    "AITouchValueCalculation",
-    
-    # Analytics constants
-    "EQUITY_FACTOR",
-    
-    # Fingerprint models and enums
-    "Fingerprint",
-    "FingerprintType",
-    "FingerprintProcessingStatus",
+    # Version
+    "__version__",
 ]

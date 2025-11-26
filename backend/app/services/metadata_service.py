@@ -108,7 +108,7 @@ class MetadataService:
                     "mode": img.mode,
                     "file_size": path.stat().st_size,
                     "has_exif": False,
-                    "exif": {}
+                    "exif": {},
                 }
 
                 # Extract EXIF data if available
@@ -217,7 +217,7 @@ class MetadataService:
                 "sample_rate": sample_rate,
                 "estimated_bitrate_kbps": estimated_bitrate_kbps,
                 "file_size": file_size,
-                "channels": channels
+                "channels": channels,
             }
 
             self.logger.info(
@@ -314,7 +314,7 @@ class MetadataService:
                 "vp8 ": "VP8",
                 "vp9 ": "VP9",
                 "av01": "AV1",
-                "mjpg": "Motion JPEG"
+                "mjpg": "Motion JPEG",
             }
             codec_name = codec_names.get(codec.lower().strip(), codec)
 
@@ -328,7 +328,7 @@ class MetadataService:
                 "duration_formatted": duration_formatted,
                 "codec": codec,
                 "codec_name": codec_name,
-                "file_size": file_size
+                "file_size": file_size,
             }
 
             self.logger.info(
@@ -443,7 +443,7 @@ class MetadataService:
                     "creation_date": creation_date,
                     "modification_date": modification_date,
                     "is_encrypted": is_encrypted,
-                    "file_size": file_size
+                    "file_size": file_size,
                 }
 
                 self.logger.info(
@@ -533,7 +533,7 @@ class MetadataService:
                 "line_count": line_count,
                 "character_count": character_count,
                 "word_count": word_count,
-                "is_empty": is_empty
+                "is_empty": is_empty,
             }
 
             self.logger.info(
@@ -546,11 +546,7 @@ class MetadataService:
             self.logger.exception("Error extracting text metadata from %s", file_path)
             raise ValueError(f"Error extracting text metadata: {e}") from e
 
-    async def extract_metadata(
-        self,
-        file_path: str,
-        file_type: str
-    ) -> dict[str, Any]:
+    async def extract_metadata(self, file_path: str, file_type: str) -> dict[str, Any]:
         """
         Universal metadata extractor that routes to the appropriate method.
 
@@ -582,9 +578,7 @@ class MetadataService:
             FileNotFoundError: If the file does not exist
             ValueError: If file_type is unsupported or file is invalid
         """
-        self.logger.info(
-            f"Extracting metadata for file_type={file_type} from: {file_path}"
-        )
+        self.logger.info(f"Extracting metadata for file_type={file_type} from: {file_path}")
 
         path = Path(file_path)
         if not path.exists():
@@ -620,16 +614,11 @@ class MetadataService:
         except Exception as e:
             self.logger.exception("Error during type-specific metadata extraction")
             # Store error info but continue with common metadata
-            type_specific_metadata = {
-                "extraction_error": str(e),
-                "extraction_successful": False
-            }
+            type_specific_metadata = {"extraction_error": str(e), "extraction_successful": False}
 
         # Add common metadata
         stat_info = path.stat()
-        modification_time = datetime.fromtimestamp(
-            stat_info.st_mtime, tz=UTC
-        ).isoformat()
+        modification_time = datetime.fromtimestamp(stat_info.st_mtime, tz=UTC).isoformat()
 
         common_metadata: dict[str, Any] = {
             "file_path": str(path.absolute()),
@@ -638,7 +627,7 @@ class MetadataService:
             "file_extension": path.suffix.lower(),
             "file_size": stat_info.st_size,
             "modification_time": modification_time,
-            "extraction_timestamp": datetime.now(tz=UTC).isoformat()
+            "extraction_timestamp": datetime.now(tz=UTC).isoformat(),
         }
 
         # Merge type-specific and common metadata
