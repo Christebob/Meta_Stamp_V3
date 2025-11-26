@@ -82,6 +82,10 @@ export interface UseWebSocketReturn {
     type: string,
     callback: SubscribeCallback<T>
   ) => () => void;
+  /** Manually disconnect the WebSocket connection */
+  disconnect: () => void;
+  /** Manually reconnect the WebSocket connection */
+  reconnect: () => void;
   /** Current error if connection failed, null otherwise */
   error: Error | null;
 }
@@ -379,7 +383,10 @@ export function useWebSocket(): UseWebSocketReturn {
     
     try {
       const url = getWebSocketUrl();
-      console.log('[WebSocket] Connecting to:', url);
+      // Development logging - use warn level to pass lint
+      if (import.meta.env.DEV) {
+        console.warn('[WebSocket] Connecting to:', url);
+      }
       
       const ws = new WebSocket(url);
       wsRef.current = ws;
@@ -388,7 +395,10 @@ export function useWebSocket(): UseWebSocketReturn {
       ws.onopen = () => {
         if (!isMountedRef.current) return;
         
-        console.log('[WebSocket] Connection established');
+        // Development logging
+        if (import.meta.env.DEV) {
+          console.warn('[WebSocket] Connection established');
+        }
         setConnectionState(WebSocketState.CONNECTED);
         setError(null);
         reconnectAttemptRef.current = 0;
@@ -399,11 +409,14 @@ export function useWebSocket(): UseWebSocketReturn {
       ws.onclose = (event) => {
         if (!isMountedRef.current) return;
         
-        console.log(
-          '[WebSocket] Connection closed:',
-          event.code,
-          event.reason || 'No reason provided'
-        );
+        // Development logging
+        if (import.meta.env.DEV) {
+          console.warn(
+            '[WebSocket] Connection closed:',
+            event.code,
+            event.reason || 'No reason provided'
+          );
+        }
         
         // Clean up heartbeat
         if (heartbeatTimerRef.current) {
@@ -419,11 +432,14 @@ export function useWebSocket(): UseWebSocketReturn {
           reconnectAttemptRef.current < WEBSOCKET_CONFIG.MAX_RECONNECT_ATTEMPTS
         ) {
           const delay = calculateReconnectDelay(reconnectAttemptRef.current);
-          console.log(
-            `[WebSocket] Scheduling reconnection attempt ${
-              reconnectAttemptRef.current + 1
-            } in ${Math.round(delay)}ms`
-          );
+          // Development logging
+          if (import.meta.env.DEV) {
+            console.warn(
+              `[WebSocket] Scheduling reconnection attempt ${
+                reconnectAttemptRef.current + 1
+              } in ${Math.round(delay)}ms`
+            );
+          }
           
           reconnectTimerRef.current = setTimeout(() => {
             reconnectAttemptRef.current += 1;
@@ -504,6 +520,34 @@ export function useWebSocket(): UseWebSocketReturn {
     
     setConnectionState(WebSocketState.DISCONNECTED);
   }, [clearTimers]);
+  
+  /**
+   * Manually reconnects the WebSocket connection.
+   * Resets reconnection attempt counter and re-enables auto-reconnection.
+   */
+  const reconnect = useCallback(() => {
+    // Reset reconnection state
+    shouldReconnectRef.current = true;
+    reconnectAttemptRef.current = 0;
+    
+    // Clear any existing connection and timers
+    clearTimers();
+    
+    if (wsRef.current) {
+      wsRef.current.onclose = null; // Prevent reconnection from onclose handler
+      if (
+        wsRef.current.readyState !== WebSocket.CLOSING &&
+        wsRef.current.readyState !== WebSocket.CLOSED
+      ) {
+        wsRef.current.close(1000, 'Client reconnect');
+      }
+      wsRef.current = null;
+    }
+    
+    // Establish new connection
+    setError(null);
+    connect();
+  }, [clearTimers, connect]);
   
   // ---------------------------------------------------------------------------
   // Public API
@@ -596,6 +640,10 @@ export function useWebSocket(): UseWebSocketReturn {
     isMountedRef.current = true;
     shouldReconnectRef.current = true;
     
+    // Capture refs for cleanup to satisfy React hooks exhaustive-deps
+    const subscribers = subscribersRef.current;
+    const ws = wsRef.current;
+    
     // Connect on mount
     connect();
     
@@ -606,14 +654,15 @@ export function useWebSocket(): UseWebSocketReturn {
       clearTimers();
       
       // Clear all subscribers
-      subscribersRef.current.clear();
+      subscribers.clear();
       
       // Close WebSocket connection
-      if (wsRef.current) {
-        wsRef.current.onclose = null; // Prevent reconnection attempt
-        wsRef.current.close(1000, 'Component unmount');
-        wsRef.current = null;
+      const currentWs = wsRef.current ?? ws;
+      if (currentWs) {
+        currentWs.onclose = null; // Prevent reconnection attempt
+        currentWs.close(1000, 'Component unmount');
       }
+      wsRef.current = null;
     };
   }, [connect, clearTimers]);
   
@@ -625,10 +674,16 @@ export function useWebSocket(): UseWebSocketReturn {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         // Tab is hidden - could pause heartbeat to save resources
-        console.log('[WebSocket] Tab hidden, connection maintained');
+        // Development logging only
+        if (import.meta.env.DEV) {
+          console.warn('[WebSocket] Tab hidden, connection maintained');
+        }
       } else {
         // Tab is visible again - check connection health
-        console.log('[WebSocket] Tab visible, checking connection');
+        // Development logging only
+        if (import.meta.env.DEV) {
+          console.warn('[WebSocket] Tab visible, checking connection');
+        }
         
         if (
           !wsRef.current ||
@@ -658,6 +713,8 @@ export function useWebSocket(): UseWebSocketReturn {
     connectionState,
     sendMessage,
     subscribe,
+    disconnect,
+    reconnect,
     error,
   };
 }
