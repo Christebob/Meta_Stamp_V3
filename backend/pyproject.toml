@@ -126,18 +126,6 @@ extend-exclude = '''
 line-length = 100
 target-version = "py311"
 
-# Select rule categories:
-# E = pycodestyle errors
-# F = Pyflakes
-# I = isort
-# W = pycodestyle warnings
-# B = flake8-bugbear
-# UP = pyupgrade
-select = ["E", "F", "I", "W", "B", "UP"]
-
-# Rules to ignore (none by default for strict compliance)
-ignore = []
-
 # Exclude directories from linting
 exclude = [
     ".venv",
@@ -153,13 +141,26 @@ exclude = [
 # Fix auto-fixable issues when running ruff check --fix
 fix = true
 
-[tool.ruff.isort]
+[tool.ruff.lint]
+# Select rule categories:
+# E = pycodestyle errors
+# F = Pyflakes
+# I = isort
+# W = pycodestyle warnings
+# B = flake8-bugbear
+# UP = pyupgrade
+select = ["E", "F", "I", "W", "B", "UP"]
+
+# Rules to ignore (none by default for strict compliance)
+ignore = []
+
+[tool.ruff.lint.isort]
 # Configure import sorting
 known-first-party = ["app"]
 force-single-line = false
 lines-after-imports = 2
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 # Allow unused imports in __init__.py files (common pattern for re-exports)
 "__init__.py" = ["F401"]
 # Allow assert statements in tests
