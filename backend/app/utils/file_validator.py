@@ -19,9 +19,9 @@ Security Constraints (NON-NEGOTIABLE - Agent Action Plan Section 0.3):
 Author: META-STAMP V3 Development Team
 """
 
-import os
 import re
 
+from pathlib import Path
 from urllib.parse import urlparse
 
 import magic
@@ -33,11 +33,14 @@ from fastapi import HTTPException
 # CONSTANTS - Size Limits
 # =============================================================================
 
+# Bytes in a kilobyte (for size conversions and comparisons)
+BYTES_PER_KB: int = 1024
+
 # Maximum allowed file size: 500 MB (NON-NEGOTIABLE per Agent Action Plan 0.3)
-MAX_FILE_SIZE_BYTES: int = 500 * 1024 * 1024  # 500 MB
+MAX_FILE_SIZE_BYTES: int = 500 * BYTES_PER_KB * BYTES_PER_KB  # 500 MB
 
 # Threshold for switching to presigned URL upload (files > 10MB use S3 presigned URLs)
-DIRECT_UPLOAD_THRESHOLD_BYTES: int = 10 * 1024 * 1024  # 10 MB
+DIRECT_UPLOAD_THRESHOLD_BYTES: int = 10 * BYTES_PER_KB * BYTES_PER_KB  # 10 MB
 
 
 # =============================================================================
@@ -227,8 +230,7 @@ def validate_file_extension(filename: str) -> tuple[bool, str | None, str | None
         return False, None, "Filename is empty or None"
 
     # Extract extension from filename (case-insensitive)
-    _, extension = os.path.splitext(filename)
-    extension = extension.lower()
+    extension = Path(filename).suffix.lower()
 
     # Handle files without extension
     if not extension:
@@ -349,6 +351,35 @@ def validate_file_extension(filename: str) -> tuple[bool, str | None, str | None
 # =============================================================================
 
 
+def _check_mime_special_cases(
+    detected_mime: str, extension: str, expected_mimes: list[str]
+) -> tuple[bool, str | None]:
+    """Check special MIME type matching cases for flexibility.
+
+    Returns (True, None) if special case matches, (False, error_message) otherwise.
+    """
+    # Check if detected MIME matches any expected MIME type
+    if detected_mime in expected_mimes:
+        return True, None
+
+    # Special handling for text files - they can have various text/* types
+    if extension in [".txt", ".md"] and detected_mime.startswith("text/"):
+        return True, None
+
+    # Special handling for generic binary detection
+    # Some systems detect files as application/octet-stream
+    # For some file types, this is acceptable (especially .md files)
+    if detected_mime == "application/octet-stream" and extension in [".md"]:
+        return True, None
+
+    # MIME type mismatch - potential extension spoofing
+    return False, (
+        f"File content type '{detected_mime}' does not match expected type "
+        f"for '{extension}' extension. Expected one of: {', '.join(expected_mimes)}. "
+        f"This may indicate a file with a spoofed extension."
+    )
+
+
 def validate_mime_type(file_content: bytes, filename: str) -> tuple[bool, str | None]:
     """
     Validate actual MIME type of file content against expected type for extension.
@@ -380,15 +411,17 @@ def validate_mime_type(file_content: bytes, filename: str) -> tuple[bool, str | 
         >>> validate_mime_type(exe_content, "innocent.png")
         (False, "File content type 'application/x-executable' does not match...")
     """
-    if not file_content:
-        return False, "File content is empty"
-
-    if not filename:
-        return False, "Filename is required for MIME validation"
+    # Validate inputs
+    validation_errors = {
+        "File content is empty": not file_content,
+        "Filename is required for MIME validation": not filename,
+    }
+    for error_msg, condition in validation_errors.items():
+        if condition:
+            return False, error_msg
 
     # Extract extension
-    _, extension = os.path.splitext(filename)
-    extension = extension.lower()
+    extension = Path(filename).suffix.lower()
 
     if not extension:
         return False, "File has no extension for MIME type verification"
@@ -408,30 +441,9 @@ def validate_mime_type(file_content: bytes, filename: str) -> tuple[bool, str | 
         if not detected_mime:
             return False, "Could not detect MIME type from file content"
 
-        # Normalize detected MIME type
+        # Normalize detected MIME type and check against expected types
         detected_mime = detected_mime.lower().strip()
-
-        # Check if detected MIME matches any expected MIME type
-        if detected_mime in expected_mimes:
-            return True, None
-
-        # Special handling for text files - they can have various text/* types
-        if extension in [".txt", ".md"] and detected_mime.startswith("text/"):
-            return True, None
-
-        # Special handling for generic binary detection
-        # Some systems detect files as application/octet-stream
-        if detected_mime == "application/octet-stream":
-            # For some file types, this is acceptable (especially .md files)
-            if extension in [".md"]:
-                return True, None
-
-        # MIME type mismatch - potential extension spoofing
-        return False, (
-            f"File content type '{detected_mime}' does not match expected type "
-            f"for '{extension}' extension. Expected one of: {', '.join(expected_mimes)}. "
-            f"This may indicate a file with a spoofed extension."
-        )
+        return _check_mime_special_cases(detected_mime, extension, expected_mimes)
 
     except Exception as e:
         # Log error but don't expose internal details to user
@@ -558,14 +570,15 @@ def sanitize_filename(filename: str) -> str:
     filename = filename.replace("\\", "/")
 
     # Get the base filename without any path components
-    filename = os.path.basename(filename)
+    path = Path(filename)
+    filename = path.name
 
     if not filename:
         return "unnamed_file"
 
     # Split into name and extension
-    name, extension = os.path.splitext(filename)
-    extension = extension.lower()
+    extension = path.suffix.lower()
+    name = path.stem
 
     # Handle files with only extension (e.g., ".gitignore")
     if not name and extension:
@@ -603,10 +616,7 @@ def sanitize_filename(filename: str) -> str:
         name = "unnamed_file"
 
     # Reconstruct filename with extension
-    if extension:
-        sanitized = f"{name}{extension}"
-    else:
-        sanitized = name
+    sanitized = f"{name}{extension}" if extension else name
 
     # Enforce maximum filename length (255 is common filesystem limit)
     max_length = 255
@@ -706,10 +716,7 @@ def validate_url(url: str) -> tuple[bool, str | None, str | None]:
     # Check for Vimeo
     elif _VIMEO_REGEX.match(url):
         netloc_lower = parsed.netloc.lower()
-        if "vimeo" in netloc_lower:
-            url_type = "vimeo"
-        else:
-            url_type = "webpage"
+        url_type = "vimeo" if "vimeo" in netloc_lower else "webpage"
     else:
         url_type = "webpage"
 
@@ -870,13 +877,16 @@ def format_file_size(size_bytes: int) -> str:
     if size_bytes < 0:
         return "Invalid size"
 
-    if size_bytes < 1024:
+    bytes_per_mb = BYTES_PER_KB * BYTES_PER_KB
+    bytes_per_gb = bytes_per_mb * BYTES_PER_KB
+
+    if size_bytes < BYTES_PER_KB:
         return f"{size_bytes} B"
-    if size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.2f} KB"
-    if size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.2f} MB"
-    return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+    if size_bytes < bytes_per_mb:
+        return f"{size_bytes / BYTES_PER_KB:.2f} KB"
+    if size_bytes < bytes_per_gb:
+        return f"{size_bytes / bytes_per_mb:.2f} MB"
+    return f"{size_bytes / bytes_per_gb:.2f} GB"
 
 
 # =============================================================================

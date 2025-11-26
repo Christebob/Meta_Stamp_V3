@@ -43,6 +43,9 @@ boto3 = "^1.41.4"
 # Authentication and Security
 python-jose = {extras = ["cryptography"], version = "^3.5.0"}
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+# Pin bcrypt to 4.3.0 due to compatibility issue with passlib 1.7.4
+# See: https://github.com/pyca/bcrypt/issues/1079
+bcrypt = "^4.3.0,<5.0.0"
 
 # LangChain AI Framework with Multi-Provider Support
 # MANDATORY: OpenAI GPT-4/5, Anthropic Claude, Google Gemini support per section 0.3
