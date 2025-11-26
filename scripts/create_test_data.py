@@ -30,9 +30,9 @@ import os
 import random
 import sys
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from bson import ObjectId
 from dotenv import load_dotenv
@@ -44,6 +44,7 @@ from pymongo.errors import (
     DuplicateKeyError,
     ServerSelectionTimeoutError,
 )
+
 
 # Constants
 DATABASE_NAME = "metastamp"
@@ -140,7 +141,7 @@ class TestDataGenerator:
     and analytics records to support local development and testing workflows.
     """
 
-    def __init__(self, seed: Optional[int] = None, verbose: bool = False):
+    def __init__(self, seed: int | None = None, verbose: bool = False):
         """
         Initialize the test data generator.
 
@@ -150,9 +151,9 @@ class TestDataGenerator:
         """
         self.verbose = verbose
         self.seed = seed
-        self.client: Optional[MongoClient] = None
-        self.db: Optional[Database] = None
-        self.fake: Optional[Faker] = None
+        self.client: MongoClient | None = None
+        self.db: Database | None = None
+        self.fake: Faker | None = None
 
         # Tracking counters
         self._user_count = 0
@@ -163,8 +164,8 @@ class TestDataGenerator:
         self._analytics_count = 0
 
         # Store created IDs for relationships
-        self._user_ids: List[ObjectId] = []
-        self._asset_ids: List[ObjectId] = []
+        self._user_ids: list[ObjectId] = []
+        self._asset_ids: list[ObjectId] = []
 
         # Initialize random and Faker with seed
         if seed is not None:
@@ -182,7 +183,7 @@ class TestDataGenerator:
             message: Message to log.
             level: Log level (INFO, WARNING, ERROR, DEBUG).
         """
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
         if level == "DEBUG" and not self.verbose:
             return
         prefix = f"[{timestamp}] [{level}]"
@@ -303,7 +304,7 @@ class TestDataGenerator:
             self.log(f"Error during cleanup: {e}", "ERROR")
             return False
 
-    def generate_users(self, count: int) -> List[ObjectId]:
+    def generate_users(self, count: int) -> list[ObjectId]:
         """
         Generate sample users with realistic profiles.
 
@@ -316,15 +317,15 @@ class TestDataGenerator:
         self.log(f"\nGenerating {count} sample users...", "INFO")
 
         users_collection = self.db[COLLECTIONS["users"]]
-        user_ids: List[ObjectId] = []
+        user_ids: list[ObjectId] = []
 
         for i in range(count):
             # Generate realistic user data
             created_at = self.fake.date_time_between(
-                start_date="-60d", end_date="-1d", tzinfo=timezone.utc
+                start_date="-60d", end_date="-1d", tzinfo=UTC
             )
             last_login = self.fake.date_time_between(
-                start_date=created_at, end_date="now", tzinfo=timezone.utc
+                start_date=created_at, end_date="now", tzinfo=UTC
             )
 
             user = {
@@ -366,8 +367,8 @@ class TestDataGenerator:
         return user_ids
 
     def generate_assets(
-        self, user_ids: List[ObjectId], total_count: int
-    ) -> List[Dict[str, Any]]:
+        self, user_ids: list[ObjectId], total_count: int
+    ) -> list[dict[str, Any]]:
         """
         Generate sample assets across all supported file types.
 
@@ -381,7 +382,7 @@ class TestDataGenerator:
         self.log(f"\nGenerating {total_count} sample assets...", "INFO")
 
         assets_collection = self.db[COLLECTIONS["assets"]]
-        created_assets: List[Dict[str, Any]] = []
+        created_assets: list[dict[str, Any]] = []
 
         # Calculate count per file type based on proportions
         type_counts = {}
@@ -424,8 +425,8 @@ class TestDataGenerator:
         return created_assets
 
     def _create_asset_document(
-        self, file_type: str, user_ids: List[ObjectId]
-    ) -> Dict[str, Any]:
+        self, file_type: str, user_ids: list[ObjectId]
+    ) -> dict[str, Any]:
         """
         Create a single asset document based on file type.
 
@@ -440,7 +441,7 @@ class TestDataGenerator:
         user_id = random.choice(user_ids)
         asset_id = ObjectId()
         created_at = self.fake.date_time_between(
-            start_date="-30d", end_date="now", tzinfo=timezone.utc
+            start_date="-30d", end_date="now", tzinfo=UTC
         )
 
         # Choose upload status based on weights
@@ -496,7 +497,7 @@ class TestDataGenerator:
         platform: str,
         created_at: datetime,
         upload_status: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create a URL-based asset document.
 
@@ -597,7 +598,7 @@ class TestDataGenerator:
 
     def _generate_asset_metadata(
         self, file_type: str, extension: str, file_size: int
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Generate type-specific metadata for an asset.
 
@@ -677,8 +678,8 @@ class TestDataGenerator:
         return {}
 
     def generate_fingerprints(
-        self, assets: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, assets: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Generate fingerprint data for each asset.
 
@@ -692,7 +693,7 @@ class TestDataGenerator:
 
         fingerprints_collection = self.db[COLLECTIONS["fingerprints"]]
         assets_collection = self.db[COLLECTIONS["assets"]]
-        created_fingerprints: List[Dict[str, Any]] = []
+        created_fingerprints: list[dict[str, Any]] = []
 
         for asset in assets:
             # Only create fingerprints for ready assets
@@ -724,7 +725,7 @@ class TestDataGenerator:
         )
         return created_fingerprints
 
-    def _create_fingerprint_document(self, asset: Dict[str, Any]) -> Dict[str, Any]:
+    def _create_fingerprint_document(self, asset: dict[str, Any]) -> dict[str, Any]:
         """
         Create a fingerprint document for an asset.
 
@@ -736,7 +737,7 @@ class TestDataGenerator:
         """
         file_type = asset["file_type"]
         fingerprint_id = ObjectId()
-        created_at = asset.get("created_at", datetime.now(timezone.utc))
+        created_at = asset.get("created_at", datetime.now(UTC))
 
         # Base fingerprint structure
         fingerprint = {
@@ -789,7 +790,7 @@ class TestDataGenerator:
 
         return fingerprint
 
-    def _generate_image_hashes(self) -> Dict[str, Any]:
+    def _generate_image_hashes(self) -> dict[str, Any]:
         """
         Generate mock perceptual hashes for images.
 
@@ -803,7 +804,7 @@ class TestDataGenerator:
             "hash_size": 8,  # 8x8 hash
         }
 
-    def _generate_spectral_data(self) -> Dict[str, Any]:
+    def _generate_spectral_data(self) -> dict[str, Any]:
         """
         Generate mock spectral fingerprint data for audio.
 
@@ -826,7 +827,7 @@ class TestDataGenerator:
             ],
         }
 
-    def _generate_video_hashes(self) -> Dict[str, Any]:
+    def _generate_video_hashes(self) -> dict[str, Any]:
         """
         Generate mock video frame hashes.
 
@@ -844,7 +845,7 @@ class TestDataGenerator:
             "scene_changes": random.randint(0, num_frames - 1),
         }
 
-    def _generate_embeddings(self) -> Dict[str, List[float]]:
+    def _generate_embeddings(self) -> dict[str, list[float]]:
         """
         Generate mock multi-modal embeddings.
 
@@ -876,8 +877,8 @@ class TestDataGenerator:
         return "".join(random.choices("0123456789abcdef", k=length))
 
     def generate_wallets(
-        self, user_ids: List[ObjectId], transactions_per_user: tuple = (5, 20)
-    ) -> List[Dict[str, Any]]:
+        self, user_ids: list[ObjectId], transactions_per_user: tuple = (5, 20)
+    ) -> list[dict[str, Any]]:
         """
         Generate wallet balances and transaction history for users.
 
@@ -891,7 +892,7 @@ class TestDataGenerator:
         self.log(f"\nGenerating wallets for {len(user_ids)} users...", "INFO")
 
         wallet_collection = self.db[COLLECTIONS["wallet"]]
-        created_wallets: List[Dict[str, Any]] = []
+        created_wallets: list[dict[str, Any]] = []
 
         for user_id in user_ids:
             num_transactions = random.randint(*transactions_per_user)
@@ -936,8 +937,8 @@ class TestDataGenerator:
                 "total_paid_out": total_paid_out,
                 "last_payout_at": last_payout,
                 "transactions": transactions,
-                "created_at": datetime.now(timezone.utc) - timedelta(days=90),
-                "updated_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC) - timedelta(days=90),
+                "updated_at": datetime.now(UTC),
             }
 
             try:
@@ -960,7 +961,7 @@ class TestDataGenerator:
 
     def _generate_transactions(
         self, user_id: ObjectId, count: int
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Generate transaction history for a user.
 
@@ -971,7 +972,7 @@ class TestDataGenerator:
         Returns:
             List of transaction documents.
         """
-        transactions: List[Dict[str, Any]] = []
+        transactions: list[dict[str, Any]] = []
 
         # Generate transactions spread over the last 90 days
         for _ in range(count):
@@ -995,7 +996,7 @@ class TestDataGenerator:
                 amount = Decimal(str(round(random.uniform(-100.0, 100.0), 2)))
 
             timestamp = self.fake.date_time_between(
-                start_date="-90d", end_date="now", tzinfo=timezone.utc
+                start_date="-90d", end_date="now", tzinfo=UTC
             )
 
             # Generate description
@@ -1052,8 +1053,8 @@ class TestDataGenerator:
         return transactions
 
     def generate_analytics(
-        self, assets: List[Dict[str, Any]], count: int
-    ) -> List[Dict[str, Any]]:
+        self, assets: list[dict[str, Any]], count: int
+    ) -> list[dict[str, Any]]:
         """
         Generate AI Touch Value™ calculation records.
 
@@ -1067,7 +1068,7 @@ class TestDataGenerator:
         self.log(f"\nGenerating {count} AI Touch Value™ calculations...", "INFO")
 
         analytics_collection = self.db[COLLECTIONS["analytics"]]
-        created_analytics: List[Dict[str, Any]] = []
+        created_analytics: list[dict[str, Any]] = []
 
         # Get ready assets for analytics
         ready_assets = [a for a in assets if a.get("upload_status") == "ready"]
@@ -1093,7 +1094,7 @@ class TestDataGenerator:
             )
 
             timestamp = self.fake.date_time_between(
-                start_date="-30d", end_date="now", tzinfo=timezone.utc
+                start_date="-30d", end_date="now", tzinfo=UTC
             )
 
             analytics = {

@@ -29,8 +29,8 @@ Version: 1.0.0
 import argparse
 import os
 import sys
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import bcrypt
 from dotenv import load_dotenv
@@ -44,6 +44,7 @@ from pymongo.errors import (
     OperationFailure,
     ServerSelectionTimeoutError,
 )
+
 
 # Constants
 DATABASE_NAME = "metastamp"
@@ -78,8 +79,8 @@ class DatabaseInitializer:
             verbose: Enable verbose logging output.
         """
         self.verbose = verbose
-        self.client: Optional[MongoClient] = None
-        self.db: Optional[Database] = None
+        self.client: MongoClient | None = None
+        self.db: Database | None = None
         self._operation_count = 0
         self._error_count = 0
         self._success_count = 0
@@ -92,7 +93,7 @@ class DatabaseInitializer:
             message: Message to log.
             level: Log level (INFO, WARNING, ERROR, DEBUG).
         """
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
         if level == "DEBUG" and not self.verbose:
             return
         prefix = f"[{timestamp}] [{level}]"
@@ -226,7 +227,7 @@ class DatabaseInitializer:
     def create_collection_with_validation(
         self,
         name: str,
-        validator: Dict[str, Any],
+        validator: dict[str, Any],
         validation_level: str = "moderate",
         validation_action: str = "error",
     ) -> Collection:
@@ -853,7 +854,7 @@ class DatabaseInitializer:
             return False
 
     def _create_indexes_safely(
-        self, collection: Collection, indexes: List[IndexModel]
+        self, collection: Collection, indexes: list[IndexModel]
     ) -> None:
         """
         Create indexes safely, handling existing indexes.
@@ -931,7 +932,7 @@ class DatabaseInitializer:
                 "email": admin_email,
                 "auth0_id": None,  # Local authentication
                 "password_hash": password_hash,
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
                 "last_login": None,
                 "role": "admin",
                 "profile": {
@@ -1092,8 +1093,9 @@ class DatabaseInitializer:
         """
         try:
             # Use a test document that satisfies validation
-            from bson import ObjectId
             from decimal import Decimal
+
+            from bson import ObjectId
 
             test_id = ObjectId()
 
@@ -1106,7 +1108,7 @@ class DatabaseInitializer:
                 "exposure_score": 50,
                 "equity_factor": 0.25,
                 "calculated_value": Decimal("62.50"),  # 1000 * 0.5 * 0.5 * 0.25
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(UTC),
                 "calculation_type": "manual",
             }
 
