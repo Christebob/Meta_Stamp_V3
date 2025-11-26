@@ -36,7 +36,8 @@ interface RejectedFile {
 const DEFAULT_MAX_SIZE = 500 * 1024 * 1024;
 
 /** Default accepted file types matching META-STAMP V3 requirements */
-const DEFAULT_ACCEPT = '.txt,.md,.pdf,.png,.jpg,.jpeg,.webp,.mp3,.wav,.aac,.mp4,.mov,.avi';
+const DEFAULT_ACCEPT =
+  '.txt,.md,.pdf,.png,.jpg,.jpeg,.webp,.mp3,.wav,.aac,.mp4,.mov,.avi';
 
 /**
  * Formats byte values into human-readable strings (KB, MB, GB)
@@ -45,11 +46,11 @@ const DEFAULT_ACCEPT = '.txt,.md,.pdf,.png,.jpg,.jpeg,.webp,.mp3,.wav,.aac,.mp4,
  */
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
@@ -66,7 +67,7 @@ function getFileExtension(filename: string): string {
 
 /**
  * FileDropZone Component
- * 
+ *
  * A drag-and-drop file upload zone implementing HTML5 drag-and-drop API with:
  * - Visual feedback for drag states (hover/active)
  * - File type validation against allowed extensions
@@ -76,7 +77,7 @@ function getFileExtension(filename: string): string {
  * - Rejected file list display with user-friendly error messages
  * - TailwindCSS styling for responsive dashed border area
  * - Full accessibility support (keyboard navigation, ARIA labels)
- * 
+ *
  * @param props - Component props as defined in FileDropZoneProps interface
  * @returns JSX element representing the file drop zone
  */
@@ -91,13 +92,13 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
 }) => {
   // State for tracking drag hover status for visual feedback
   const [isDragging, setIsDragging] = useState<boolean>(false);
-  
+
   // State for tracking files that failed validation
   const [rejectedFiles, setRejectedFiles] = useState<RejectedFile[]>([]);
-  
+
   // Counter for tracking nested drag events (browser fires multiple events for nested elements)
   const dragCounter = useRef<number>(0);
-  
+
   // Reference to hidden file input element for programmatic triggering
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -124,7 +125,10 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
       const fileExtension = getFileExtension(file.name);
 
       // Check file extension against accepted types
-      if (acceptedExtensions.length > 0 && !acceptedExtensions.includes(fileExtension)) {
+      if (
+        acceptedExtensions.length > 0 &&
+        !acceptedExtensions.includes(fileExtension)
+      ) {
         return {
           valid: false,
           reason: `Unsupported file type "${fileExtension}". Accepted: ${accept}`,
@@ -216,9 +220,9 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      
+
       if (disabled) return;
-      
+
       dragCounter.current += 1;
       if (event.dataTransfer?.items && event.dataTransfer.items.length > 0) {
         setIsDragging(true);
@@ -235,9 +239,9 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      
+
       if (disabled) return;
-      
+
       dragCounter.current -= 1;
       if (dragCounter.current === 0) {
         setIsDragging(false);
@@ -254,9 +258,9 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      
+
       if (disabled) return;
-      
+
       // Ensure dropEffect is set for proper cursor feedback
       if (event.dataTransfer) {
         event.dataTransfer.dropEffect = 'copy';
@@ -273,19 +277,19 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      
+
       // Reset drag state
       dragCounter.current = 0;
       setIsDragging(false);
-      
+
       if (disabled) return;
-      
+
       // Extract files from drop event
       const droppedFiles = event.dataTransfer?.files;
       if (droppedFiles && droppedFiles.length > 0) {
-        const filesArray = multiple 
-          ? Array.from(droppedFiles)
-          : [droppedFiles[0]];
+        const allFiles = Array.from(droppedFiles);
+        // When multiple is false, only take the first file
+        const filesArray = multiple ? allFiles : allFiles.slice(0, 1);
         processFiles(filesArray);
       }
     },
@@ -322,7 +326,7 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (disabled) return;
-      
+
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         fileInputRef.current?.click();
@@ -353,11 +357,12 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
     p-8 md:p-8 p-4
     border-2 border-dashed rounded-lg
     transition-all duration-200 ease-in-out
-    ${disabled 
-      ? 'border-gray-200 bg-gray-100 cursor-not-allowed opacity-60' 
-      : isDragging 
-        ? 'border-blue-500 bg-blue-50 scale-[1.02]' 
-        : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100 cursor-pointer'
+    ${
+      disabled
+        ? 'border-gray-200 bg-gray-100 cursor-not-allowed opacity-60'
+        : isDragging
+          ? 'border-blue-500 bg-blue-50 scale-[1.02]'
+          : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100 cursor-pointer'
     }
     ${className}
   `.trim();
@@ -398,37 +403,45 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
         />
 
         {/* Upload Icon */}
-        <div className={`
+        <div
+          className={`
           w-16 h-16 mx-auto mb-4 
           flex items-center justify-center 
           rounded-full
           transition-all duration-200
-          ${isDragging 
-            ? 'bg-blue-100 text-blue-600' 
-            : 'bg-gray-200 text-gray-500'
+          ${
+            isDragging
+              ? 'bg-blue-100 text-blue-600'
+              : 'bg-gray-200 text-gray-500'
           }
-        `}>
-          <UploadCloud 
+        `}
+        >
+          <UploadCloud
             className={`
               w-8 h-8 
               transition-transform duration-200
               ${isDragging ? 'scale-110' : ''}
-            `} 
+            `}
           />
         </div>
 
         {/* Primary Text */}
-        <p className={`
+        <p
+          className={`
           text-lg font-medium mb-2 
           transition-colors duration-200
           ${isDragging ? 'text-blue-700' : 'text-gray-700'}
-        `}>
+        `}
+        >
           {isDragging ? 'Drop files here' : 'Drag and drop files here'}
         </p>
 
         {/* Secondary Text */}
         <p className="text-sm text-gray-500 mb-4">
-          or <span className="text-blue-600 hover:text-blue-700 font-medium">click to browse</span>
+          or{' '}
+          <span className="text-blue-600 hover:text-blue-700 font-medium">
+            click to browse
+          </span>
         </p>
 
         {/* File Requirements */}
@@ -437,7 +450,8 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
             <span className="font-medium">Supports:</span> {formattedAccept}
           </p>
           <p>
-            <span className="font-medium">Max size:</span> {formatBytes(maxSize)}
+            <span className="font-medium">Max size:</span>{' '}
+            {formatBytes(maxSize)}
             {maxFiles !== Infinity && (
               <span className="ml-2">
                 <span className="font-medium">• Max files:</span> {maxFiles}
@@ -448,8 +462,9 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
 
         {/* Screen Reader Only Text for Accessibility */}
         <span className="sr-only">
-          This is a file upload area. You can drag and drop files here or press Enter to open the file browser.
-          Accepted file types: {formattedAccept}. Maximum file size: {formatBytes(maxSize)}.
+          This is a file upload area. You can drag and drop files here or press
+          Enter to open the file browser. Accepted file types: {formattedAccept}
+          . Maximum file size: {formatBytes(maxSize)}.
           {maxFiles !== Infinity && ` Maximum number of files: ${maxFiles}.`}
         </span>
       </div>
@@ -478,10 +493,10 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
               <span>Clear all</span>
             </button>
           </div>
-          
+
           <ul className="space-y-2">
             {rejectedFiles.map((file, index) => (
-              <li 
+              <li
                 key={`${file.name}-${index}`}
                 className="
                   flex items-start justify-between gap-2
@@ -491,7 +506,9 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
                 "
               >
                 <div className="flex-1 min-w-0">
-                  <span className="font-medium truncate block">{file.name}</span>
+                  <span className="font-medium truncate block">
+                    {file.name}
+                  </span>
                   <span className="text-red-500 text-xs">{file.reason}</span>
                 </div>
                 <button
