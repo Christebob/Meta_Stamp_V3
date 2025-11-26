@@ -1,22 +1,39 @@
 {
   "compilerOptions": {
+    /* Target and Library Settings */
     "target": "ES2020",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "useDefineForClassFields": true,
+
+    /* Module Settings */
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+
+    /* JSX Settings - React 18 Transform */
     "jsx": "react-jsx",
+
+    /* Strict Type-Checking (MANDATORY per Agent Action Plan section 0.10) */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+
+    /* Module Interop */
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+
+    /* Path Aliases - Enables: import { Component } from '@/components/Component' */
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },
+
+    /* Build Settings - Vite handles emission */
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "noEmit": true
