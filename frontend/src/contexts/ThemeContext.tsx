@@ -15,6 +15,10 @@
  * @module contexts/ThemeContext
  */
 
+// ESLint: Disable react-refresh warning as Context files intentionally export
+// multiple items (Provider, hooks, types) which is standard React Context pattern
+/* eslint-disable react-refresh/only-export-components */
+
 import React, {
   createContext,
   useState,
