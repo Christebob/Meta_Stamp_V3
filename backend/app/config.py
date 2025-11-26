@@ -316,7 +316,7 @@ class Settings(BaseSettings):
 
     @field_validator("cors_origins", mode="before")
     @classmethod
-    def validate_cors_origins(cls, v):
+    def validate_cors_origins(cls, v: str | list[str]) -> list[str]:
         """Parse CORS origins from comma-separated string if provided as string."""
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
@@ -324,7 +324,7 @@ class Settings(BaseSettings):
 
     @field_validator("allowed_file_extensions", mode="before")
     @classmethod
-    def validate_allowed_extensions(cls, v):
+    def validate_allowed_extensions(cls, v: str | list[str]) -> list[str]:
         """Parse allowed extensions from comma-separated string if provided as string."""
         if isinstance(v, str):
             extensions = [ext.strip() for ext in v.split(",") if ext.strip()]
@@ -438,4 +438,5 @@ def get_settings() -> Settings:
         print(f"Running in {settings.app_env} mode")
         ```
     """
-    return Settings()
+    # Required fields are loaded from environment variables via pydantic-settings
+    return Settings()  # type: ignore[call-arg]
