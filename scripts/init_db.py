@@ -65,7 +65,7 @@ COLLECTIONS = {
 class DatabaseInitializer:
     """
     MongoDB database initializer for META-STAMP V3 platform.
-    
+
     Handles creation of all required collections, indexes, validation rules,
     and initial admin user seeding for the platform.
     """
@@ -136,18 +136,18 @@ class DatabaseInitializer:
                     serverSelectionTimeoutMS=CONNECTION_TIMEOUT_MS,
                     connectTimeoutMS=CONNECTION_TIMEOUT_MS,
                 )
-                
+
                 # Verify connection by issuing a ping command
                 self.client.admin.command("ping")
                 self.db = self.client[DATABASE_NAME]
-                
-                self.log(f"Successfully connected to MongoDB server", "INFO")
+
+                self.log("Successfully connected to MongoDB server", "INFO")
                 self.log(f"Using database: {DATABASE_NAME}", "DEBUG")
-                
+
                 # List existing databases
                 databases = self.client.list_database_names()
                 self.log(f"Available databases: {', '.join(databases)}", "DEBUG")
-                
+
                 return True
 
             except ConnectionFailure as e:
@@ -155,15 +155,13 @@ class DatabaseInitializer:
                 if attempt < max_retries - 1:
                     self.log(f"Retrying in {retry_delay} seconds...", "INFO")
                     import time
+
                     time.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
 
             except ServerSelectionTimeoutError as e:
                 self.log(f"Server selection timeout: {e}", "ERROR")
-                self.log(
-                    "Ensure MongoDB is running and accessible at the configured URI.",
-                    "ERROR"
-                )
+                self.log("Ensure MongoDB is running and accessible at the configured URI.", "ERROR")
                 return False
 
             except Exception as e:
@@ -221,7 +219,7 @@ class DatabaseInitializer:
         name: str,
         validator: Dict[str, Any],
         validation_level: str = "moderate",
-        validation_action: str = "error"
+        validation_action: str = "error",
     ) -> Collection:
         """
         Create a collection with JSON schema validation.
@@ -244,16 +242,16 @@ class DatabaseInitializer:
                     name,
                     validator=validator,
                     validationLevel=validation_level,
-                    validationAction=validation_action
+                    validationAction=validation_action,
                 )
                 return self.db[name]
-            
+
             # Create new collection with validation
             self.db.create_collection(
                 name,
                 validator=validator,
                 validationLevel=validation_level,
-                validationAction=validation_action
+                validationAction=validation_action,
             )
             self.log(f"Created collection: {name}", "INFO")
             return self.db[name]
@@ -283,47 +281,44 @@ class DatabaseInitializer:
                     "email": {
                         "bsonType": "string",
                         "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
-                        "description": "User email address (required, must be valid email format)"
+                        "description": "User email address (required, must be valid email format)",
                     },
                     "auth0_id": {
                         "bsonType": ["string", "null"],
-                        "description": "Auth0 user identifier (optional for local auth)"
+                        "description": "Auth0 user identifier (optional for local auth)",
                     },
                     "password_hash": {
                         "bsonType": ["string", "null"],
-                        "description": "Bcrypt hashed password for local authentication"
+                        "description": "Bcrypt hashed password for local authentication",
                     },
                     "created_at": {
                         "bsonType": "date",
-                        "description": "Account creation timestamp (required)"
+                        "description": "Account creation timestamp (required)",
                     },
                     "last_login": {
                         "bsonType": ["date", "null"],
-                        "description": "Last login timestamp (optional)"
+                        "description": "Last login timestamp (optional)",
                     },
                     "role": {
                         "bsonType": "string",
                         "enum": ["user", "admin", "moderator"],
-                        "description": "User role for access control"
+                        "description": "User role for access control",
                     },
                     "profile": {
                         "bsonType": "object",
                         "properties": {
                             "name": {"bsonType": "string"},
                             "avatar_url": {"bsonType": "string"},
-                            "bio": {"bsonType": "string"}
+                            "bio": {"bsonType": "string"},
                         },
-                        "description": "User profile information"
-                    }
-                }
+                        "description": "User profile information",
+                    },
+                },
             }
         }
 
         try:
-            collection = self.create_collection_with_validation(
-                COLLECTIONS["users"],
-                validator
-            )
+            collection = self.create_collection_with_validation(COLLECTIONS["users"], validator)
 
             # Create indexes
             indexes = [
@@ -332,7 +327,7 @@ class DatabaseInitializer:
                     [("auth0_id", ASCENDING)],
                     unique=True,
                     sparse=True,  # Allow null values
-                    name="auth0_id_unique_sparse_idx"
+                    name="auth0_id_unique_sparse_idx",
                 ),
                 IndexModel([("created_at", DESCENDING)], name="created_at_idx"),
                 IndexModel([("role", ASCENDING)], name="role_idx"),
@@ -360,95 +355,94 @@ class DatabaseInitializer:
             "$jsonSchema": {
                 "bsonType": "object",
                 "required": [
-                    "user_id", "file_name", "file_type", "file_size",
-                    "s3_key", "upload_status", "created_at"
+                    "user_id",
+                    "file_name",
+                    "file_type",
+                    "file_size",
+                    "s3_key",
+                    "upload_status",
+                    "created_at",
                 ],
                 "properties": {
                     "user_id": {
                         "bsonType": "objectId",
-                        "description": "Reference to users collection (required)"
+                        "description": "Reference to users collection (required)",
                     },
                     "file_name": {
                         "bsonType": "string",
                         "minLength": 1,
                         "maxLength": 255,
-                        "description": "Original filename (required)"
+                        "description": "Original filename (required)",
                     },
                     "file_type": {
                         "bsonType": "string",
                         "enum": ["text", "image", "audio", "video", "url"],
-                        "description": "Asset type category (required)"
+                        "description": "Asset type category (required)",
                     },
                     "file_size": {
                         "bsonType": "long",
                         "minimum": 0,
                         "maximum": 524288000,  # 500MB in bytes
-                        "description": "File size in bytes (required, max 500MB)"
+                        "description": "File size in bytes (required, max 500MB)",
                     },
                     "s3_key": {
                         "bsonType": "string",
-                        "description": "S3/MinIO object key (required)"
+                        "description": "S3/MinIO object key (required)",
                     },
                     "upload_status": {
                         "bsonType": "string",
                         "enum": ["queued", "processing", "ready", "processing_failed"],
-                        "description": "Current upload/processing status (required)"
+                        "description": "Current upload/processing status (required)",
                     },
                     "fingerprint_id": {
                         "bsonType": ["objectId", "null"],
-                        "description": "Reference to fingerprints collection (optional)"
+                        "description": "Reference to fingerprints collection (optional)",
                     },
                     "created_at": {
                         "bsonType": "date",
-                        "description": "Asset creation timestamp (required)"
+                        "description": "Asset creation timestamp (required)",
                     },
                     "updated_at": {
                         "bsonType": ["date", "null"],
-                        "description": "Last update timestamp (optional)"
+                        "description": "Last update timestamp (optional)",
                     },
-                    "mime_type": {
-                        "bsonType": "string",
-                        "description": "MIME type of the file"
-                    },
+                    "mime_type": {"bsonType": "string", "description": "MIME type of the file"},
                     "original_url": {
                         "bsonType": ["string", "null"],
-                        "description": "Original URL for URL-type assets"
+                        "description": "Original URL for URL-type assets",
                     },
                     # Phase 2 preparation fields
                     "training_detected": {
                         "bsonType": ["bool", "null"],
-                        "description": "Phase 2: Whether AI training usage detected"
+                        "description": "Phase 2: Whether AI training usage detected",
                     },
                     "dataset_matches": {
                         "bsonType": ["array", "null"],
                         "items": {"bsonType": "string"},
-                        "description": "Phase 2: List of matched AI training datasets"
+                        "description": "Phase 2: List of matched AI training datasets",
                     },
                     "similarity_scores": {
                         "bsonType": ["object", "null"],
-                        "description": "Phase 2: Similarity scores against known datasets"
+                        "description": "Phase 2: Similarity scores against known datasets",
                     },
                     "legal_status": {
                         "bsonType": ["string", "null"],
                         "enum": ["pending", "detected", "cleared", "disputed", None],
-                        "description": "Phase 2: Legal status of asset"
-                    }
-                }
+                        "description": "Phase 2: Legal status of asset",
+                    },
+                },
             }
         }
 
         try:
-            collection = self.create_collection_with_validation(
-                COLLECTIONS["assets"],
-                validator
-            )
+            collection = self.create_collection_with_validation(COLLECTIONS["assets"], validator)
 
             # Create indexes
             indexes = [
                 IndexModel([("user_id", ASCENDING)], name="user_id_idx"),
                 IndexModel(
                     [("user_id", ASCENDING), ("created_at", DESCENDING)],
-                    name="user_assets_sorted_idx"
+                    name="user_assets_sorted_idx",
                 ),
                 IndexModel([("upload_status", ASCENDING)], name="upload_status_idx"),
                 IndexModel([("file_type", ASCENDING)], name="file_type_idx"),
@@ -457,15 +451,9 @@ class DatabaseInitializer:
                 IndexModel([("fingerprint_id", ASCENDING)], sparse=True, name="fingerprint_id_idx"),
                 # Phase 2 indexes (conditional - for future use)
                 IndexModel(
-                    [("training_detected", ASCENDING)],
-                    sparse=True,
-                    name="training_detected_idx"
+                    [("training_detected", ASCENDING)], sparse=True, name="training_detected_idx"
                 ),
-                IndexModel(
-                    [("legal_status", ASCENDING)],
-                    sparse=True,
-                    name="legal_status_idx"
-                ),
+                IndexModel([("legal_status", ASCENDING)], sparse=True, name="legal_status_idx"),
             ]
 
             self._create_indexes_safely(collection, indexes)
@@ -493,65 +481,53 @@ class DatabaseInitializer:
                 "properties": {
                     "asset_id": {
                         "bsonType": "objectId",
-                        "description": "Reference to assets collection (required)"
+                        "description": "Reference to assets collection (required)",
                     },
                     "perceptual_hashes": {
                         "bsonType": "object",
                         "properties": {
                             "pHash": {
                                 "bsonType": "string",
-                                "description": "Perceptual hash (DCT-based)"
+                                "description": "Perceptual hash (DCT-based)",
                             },
-                            "aHash": {
-                                "bsonType": "string",
-                                "description": "Average hash"
-                            },
-                            "dHash": {
-                                "bsonType": "string",
-                                "description": "Difference hash"
-                            },
-                            "wHash": {
-                                "bsonType": "string",
-                                "description": "Wavelet hash"
-                            }
+                            "aHash": {"bsonType": "string", "description": "Average hash"},
+                            "dHash": {"bsonType": "string", "description": "Difference hash"},
+                            "wHash": {"bsonType": "string", "description": "Wavelet hash"},
                         },
-                        "description": "Perceptual hash values for image fingerprinting"
+                        "description": "Perceptual hash values for image fingerprinting",
                     },
                     "embeddings": {
                         "bsonType": ["array", "null"],
                         "items": {"bsonType": "double"},
-                        "description": "Embedding vectors (768-dimensional for CLIP/OpenAI)"
+                        "description": "Embedding vectors (768-dimensional for CLIP/OpenAI)",
                     },
                     "spectral_data": {
                         "bsonType": ["object", "null"],
                         "properties": {
                             "mel_spectrogram": {
                                 "bsonType": "array",
-                                "description": "Mel-frequency spectrogram data"
+                                "description": "Mel-frequency spectrogram data",
                             },
-                            "chromagram": {
-                                "bsonType": "array",
-                                "description": "Chromagram data"
-                            },
+                            "chromagram": {"bsonType": "array", "description": "Chromagram data"},
                             "spectral_centroid": {
                                 "bsonType": "double",
-                                "description": "Spectral centroid value"
+                                "description": "Spectral centroid value",
                             },
                             "spectral_bandwidth": {
                                 "bsonType": "double",
-                                "description": "Spectral bandwidth value"
-                            }
+                                "description": "Spectral bandwidth value",
+                            },
                         },
-                        "description": "Audio spectral analysis data"
+                        "description": "Audio spectral analysis data",
                     },
                     "metadata": {
                         "bsonType": ["object", "null"],
-                        "description": "File-specific metadata (EXIF, duration, etc.)"
+                        "description": "File-specific metadata (EXIF, duration, etc.)",
                     },
                     "video_frame_hashes": {
                         "bsonType": ["array", "null"],
                         "items": {"bsonType": "string"},
-                        "description": "Hash values for representative video frames"
+                        "description": "Hash values for representative video frames",
                     },
                     "text_features": {
                         "bsonType": ["object", "null"],
@@ -559,26 +535,25 @@ class DatabaseInitializer:
                             "word_count": {"bsonType": "int"},
                             "language": {"bsonType": "string"},
                             "encoding": {"bsonType": "string"},
-                            "content_hash": {"bsonType": "string"}
+                            "content_hash": {"bsonType": "string"},
                         },
-                        "description": "Text-specific features"
+                        "description": "Text-specific features",
                     },
                     "created_at": {
                         "bsonType": "date",
-                        "description": "Fingerprint creation timestamp (required)"
+                        "description": "Fingerprint creation timestamp (required)",
                     },
                     "algorithm_version": {
                         "bsonType": "string",
-                        "description": "Version of fingerprinting algorithm used"
-                    }
-                }
+                        "description": "Version of fingerprinting algorithm used",
+                    },
+                },
             }
         }
 
         try:
             collection = self.create_collection_with_validation(
-                COLLECTIONS["fingerprints"],
-                validator
+                COLLECTIONS["fingerprints"], validator
             )
 
             # Create indexes
@@ -586,15 +561,11 @@ class DatabaseInitializer:
                 IndexModel(
                     [("asset_id", ASCENDING)],
                     unique=True,  # One fingerprint per asset
-                    name="asset_id_unique_idx"
+                    name="asset_id_unique_idx",
                 ),
                 IndexModel([("created_at", DESCENDING)], name="created_at_idx"),
                 # Indexes for hash-based lookups (Phase 2 similarity search)
-                IndexModel(
-                    [("perceptual_hashes.pHash", ASCENDING)],
-                    sparse=True,
-                    name="phash_idx"
-                ),
+                IndexModel([("perceptual_hashes.pHash", ASCENDING)], sparse=True, name="phash_idx"),
             ]
 
             self._create_indexes_safely(collection, indexes)
@@ -622,16 +593,16 @@ class DatabaseInitializer:
                 "properties": {
                     "user_id": {
                         "bsonType": "objectId",
-                        "description": "Reference to users collection (required)"
+                        "description": "Reference to users collection (required)",
                     },
                     "balance": {
                         "bsonType": "decimal",
-                        "description": "Current wallet balance (required)"
+                        "description": "Current wallet balance (required)",
                     },
                     "currency": {
                         "bsonType": "string",
                         "enum": ["USD", "EUR", "GBP"],
-                        "description": "Currency code (required, default USD)"
+                        "description": "Currency code (required, default USD)",
                     },
                     "transactions": {
                         "bsonType": "array",
@@ -641,83 +612,73 @@ class DatabaseInitializer:
                             "properties": {
                                 "transaction_id": {
                                     "bsonType": "string",
-                                    "description": "Unique transaction identifier"
+                                    "description": "Unique transaction identifier",
                                 },
                                 "amount": {
                                     "bsonType": "decimal",
-                                    "description": "Transaction amount (required)"
+                                    "description": "Transaction amount (required)",
                                 },
                                 "type": {
                                     "bsonType": "string",
                                     "enum": ["earning", "payout", "adjustment"],
-                                    "description": "Transaction type (required)"
+                                    "description": "Transaction type (required)",
                                 },
                                 "timestamp": {
                                     "bsonType": "date",
-                                    "description": "Transaction timestamp (required)"
+                                    "description": "Transaction timestamp (required)",
                                 },
                                 "description": {
                                     "bsonType": ["string", "null"],
-                                    "description": "Transaction description (optional)"
+                                    "description": "Transaction description (optional)",
                                 },
                                 "status": {
                                     "bsonType": "string",
                                     "enum": ["pending", "completed", "failed"],
-                                    "description": "Transaction status (required)"
+                                    "description": "Transaction status (required)",
                                 },
                                 "asset_id": {
                                     "bsonType": ["objectId", "null"],
-                                    "description": "Related asset for earnings"
+                                    "description": "Related asset for earnings",
                                 },
                                 "metadata": {
                                     "bsonType": ["object", "null"],
-                                    "description": "Additional transaction metadata"
-                                }
-                            }
+                                    "description": "Additional transaction metadata",
+                                },
+                            },
                         },
-                        "description": "Array of transaction records"
+                        "description": "Array of transaction records",
                     },
                     "pending_balance": {
                         "bsonType": ["decimal", "null"],
-                        "description": "Balance pending clearance"
+                        "description": "Balance pending clearance",
                     },
                     "total_earnings": {
                         "bsonType": ["decimal", "null"],
-                        "description": "Total lifetime earnings"
+                        "description": "Total lifetime earnings",
                     },
                     "last_payout_at": {
                         "bsonType": ["date", "null"],
-                        "description": "Last payout timestamp"
-                    }
-                }
+                        "description": "Last payout timestamp",
+                    },
+                },
             }
         }
 
         try:
-            collection = self.create_collection_with_validation(
-                COLLECTIONS["wallet"],
-                validator
-            )
+            collection = self.create_collection_with_validation(COLLECTIONS["wallet"], validator)
 
             # Create indexes
             indexes = [
                 IndexModel(
                     [("user_id", ASCENDING)],
                     unique=True,  # One wallet per user
-                    name="user_id_unique_idx"
+                    name="user_id_unique_idx",
                 ),
                 IndexModel(
-                    [("transactions.timestamp", DESCENDING)],
-                    name="transactions_timestamp_idx"
+                    [("transactions.timestamp", DESCENDING)], name="transactions_timestamp_idx"
                 ),
-                IndexModel(
-                    [("transactions.status", ASCENDING)],
-                    name="transactions_status_idx"
-                ),
-                IndexModel(
-                    [("transactions.type", ASCENDING)],
-                    name="transactions_type_idx"
-                ),
+                IndexModel([("transactions.status", ASCENDING)], name="transactions_status_idx"),
+                IndexModel([("transactions.type", ASCENDING)], name="transactions_type_idx"),
             ]
 
             self._create_indexes_safely(collection, indexes)
@@ -742,45 +703,48 @@ class DatabaseInitializer:
             "$jsonSchema": {
                 "bsonType": "object",
                 "required": [
-                    "model_earnings", "contribution_score", "exposure_score",
-                    "calculated_value", "timestamp"
+                    "model_earnings",
+                    "contribution_score",
+                    "exposure_score",
+                    "calculated_value",
+                    "timestamp",
                 ],
                 "properties": {
                     "asset_id": {
                         "bsonType": ["objectId", "null"],
-                        "description": "Reference to assets collection (optional)"
+                        "description": "Reference to assets collection (optional)",
                     },
                     "user_id": {
                         "bsonType": ["objectId", "null"],
-                        "description": "Reference to users collection (optional)"
+                        "description": "Reference to users collection (optional)",
                     },
                     "model_earnings": {
                         "bsonType": "decimal",
-                        "description": "Model earnings input value (required)"
+                        "description": "Model earnings input value (required)",
                     },
                     "contribution_score": {
                         "bsonType": "int",
                         "minimum": 0,
                         "maximum": 100,
-                        "description": "Training contribution score 0-100 (required)"
+                        "description": "Training contribution score 0-100 (required)",
                     },
                     "exposure_score": {
                         "bsonType": "int",
                         "minimum": 0,
                         "maximum": 100,
-                        "description": "Usage exposure score 0-100 (required)"
+                        "description": "Usage exposure score 0-100 (required)",
                     },
                     "equity_factor": {
                         "bsonType": "double",
-                        "description": "Equity factor used (default 0.25)"
+                        "description": "Equity factor used (default 0.25)",
                     },
                     "calculated_value": {
                         "bsonType": "decimal",
-                        "description": "Calculated AI Touch Value result (required)"
+                        "description": "Calculated AI Touch Value result (required)",
                     },
                     "timestamp": {
                         "bsonType": "date",
-                        "description": "Calculation timestamp (required)"
+                        "description": "Calculation timestamp (required)",
                     },
                     "metadata": {
                         "bsonType": ["object", "null"],
@@ -789,24 +753,21 @@ class DatabaseInitializer:
                             "views": {"bsonType": "long"},
                             "content_hours": {"bsonType": "double"},
                             "platform": {"bsonType": "string"},
-                            "calculation_version": {"bsonType": "string"}
+                            "calculation_version": {"bsonType": "string"},
                         },
-                        "description": "Additional calculation metadata"
+                        "description": "Additional calculation metadata",
                     },
                     "calculation_type": {
                         "bsonType": "string",
                         "enum": ["manual", "predicted", "verified"],
-                        "description": "Type of calculation performed"
-                    }
-                }
+                        "description": "Type of calculation performed",
+                    },
+                },
             }
         }
 
         try:
-            collection = self.create_collection_with_validation(
-                COLLECTIONS["analytics"],
-                validator
-            )
+            collection = self.create_collection_with_validation(COLLECTIONS["analytics"], validator)
 
             # Create indexes
             indexes = [
@@ -814,12 +775,11 @@ class DatabaseInitializer:
                 IndexModel([("user_id", ASCENDING)], sparse=True, name="user_id_idx"),
                 IndexModel(
                     [("asset_id", ASCENDING), ("timestamp", DESCENDING)],
-                    name="asset_historical_idx"
+                    name="asset_historical_idx",
                 ),
                 IndexModel([("timestamp", DESCENDING)], name="timestamp_idx"),
                 IndexModel(
-                    [("user_id", ASCENDING), ("timestamp", DESCENDING)],
-                    name="user_historical_idx"
+                    [("user_id", ASCENDING), ("timestamp", DESCENDING)], name="user_historical_idx"
                 ),
                 IndexModel([("calculation_type", ASCENDING)], name="calculation_type_idx"),
             ]
@@ -845,7 +805,7 @@ class DatabaseInitializer:
             try:
                 # Get index name from the IndexModel
                 index_name = index.document.get("name", "unnamed_index")
-                
+
                 # Check if index already exists
                 existing_indexes = collection.index_information()
                 if index_name in existing_indexes:
@@ -880,12 +840,12 @@ class DatabaseInitializer:
             self.log(
                 "ADMIN_PASSWORD environment variable not set. "
                 "Please set it to create an admin user.",
-                "WARNING"
+                "WARNING",
             )
             self.log(
                 "Skipping admin user creation. "
                 "Set ADMIN_PASSWORD and run again to create admin.",
-                "WARNING"
+                "WARNING",
             )
             return True  # Not a failure, just skip
 
@@ -914,15 +874,17 @@ class DatabaseInitializer:
                 "profile": {
                     "name": "System Administrator",
                     "avatar_url": None,
-                    "bio": "META-STAMP V3 Platform Administrator"
-                }
+                    "bio": "META-STAMP V3 Platform Administrator",
+                },
             }
 
             # Insert admin user
             result = users_collection.insert_one(admin_user)
-            
+
             # Display admin credentials (with masked password)
-            masked_password = admin_password[:2] + "*" * (len(admin_password) - 4) + admin_password[-2:]
+            masked_password = (
+                admin_password[:2] + "*" * (len(admin_password) - 4) + admin_password[-2:]
+            )
             self.log("=" * 60, "INFO")
             self.log("Admin user created successfully!", "INFO")
             self.log(f"  Email: {admin_email}", "INFO")
@@ -954,9 +916,9 @@ class DatabaseInitializer:
         """
         try:
             from decimal import Decimal
-            
+
             wallet_collection = self.db[COLLECTIONS["wallet"]]
-            
+
             # Check if wallet already exists
             existing_wallet = wallet_collection.find_one({"user_id": user_id})
             if existing_wallet:
@@ -970,7 +932,7 @@ class DatabaseInitializer:
                 "transactions": [],
                 "pending_balance": Decimal("0.00"),
                 "total_earnings": Decimal("0.00"),
-                "last_payout_at": None
+                "last_payout_at": None,
             }
 
             wallet_collection.insert_one(wallet)
@@ -999,7 +961,7 @@ class DatabaseInitializer:
             # List all collections
             collections = self.db.list_collection_names()
             self.log(f"\nCollections in database '{DATABASE_NAME}':", "INFO")
-            
+
             for collection_name in COLLECTIONS.values():
                 if collection_name in collections:
                     # Get document count
@@ -1007,13 +969,13 @@ class DatabaseInitializer:
                     # Get index information
                     indexes = self.db[collection_name].index_information()
                     index_count = len(indexes) - 1  # Exclude _id index
-                    
+
                     self.log(
                         f"  ✓ {collection_name}: {count} documents, "
                         f"{index_count} custom indexes",
-                        "INFO"
+                        "INFO",
                     )
-                    
+
                     # Display indexes if verbose
                     if self.verbose:
                         for idx_name, idx_info in indexes.items():
@@ -1037,9 +999,9 @@ class DatabaseInitializer:
                 f"Operations Summary: "
                 f"{self._success_count} successful, "
                 f"{self._error_count} failed",
-                "INFO"
+                "INFO",
             )
-            
+
             if all_valid:
                 self.log("\n✓ Database initialization completed successfully!", "INFO")
             else:
@@ -1062,9 +1024,9 @@ class DatabaseInitializer:
             # Use a test document that satisfies validation
             from bson import ObjectId
             from decimal import Decimal
-            
+
             test_id = ObjectId()
-            
+
             # Test analytics collection (simpler schema for testing)
             analytics = self.db[COLLECTIONS["analytics"]]
             test_doc = {
@@ -1075,26 +1037,23 @@ class DatabaseInitializer:
                 "equity_factor": 0.25,
                 "calculated_value": Decimal("62.50"),  # 1000 * 0.5 * 0.5 * 0.25
                 "timestamp": datetime.now(timezone.utc),
-                "calculation_type": "manual"
+                "calculation_type": "manual",
             }
 
             # Insert
             analytics.insert_one(test_doc)
-            
+
             # Read
             found = analytics.find_one({"_id": test_id})
             if not found:
                 return False
-            
+
             # Update
-            analytics.update_one(
-                {"_id": test_id},
-                {"$set": {"contribution_score": 75}}
-            )
-            
+            analytics.update_one({"_id": test_id}, {"$set": {"contribution_score": 75}})
+
             # Delete
             analytics.delete_one({"_id": test_id})
-            
+
             # Verify deletion
             if analytics.find_one({"_id": test_id}):
                 return False
@@ -1135,27 +1094,20 @@ Environment Variables:
   MONGO_PASSWORD       MongoDB password (optional)
   ADMIN_EMAIL          Admin user email (default: admin@metastamp.local)
   ADMIN_PASSWORD       Admin user password (required for admin creation)
-        """
+        """,
     )
 
     parser.add_argument(
         "--drop",
         action="store_true",
-        help="Drop existing collections before creation (WARNING: destructive operation)"
+        help="Drop existing collections before creation (WARNING: destructive operation)",
     )
 
     parser.add_argument(
-        "--verbose",
-        "-v",
-        action="store_true",
-        help="Display detailed operation logs"
+        "--verbose", "-v", action="store_true", help="Display detailed operation logs"
     )
 
-    parser.add_argument(
-        "--skip-admin",
-        action="store_true",
-        help="Skip admin user creation"
-    )
+    parser.add_argument("--skip-admin", action="store_true", help="Skip admin user creation")
 
     return parser.parse_args()
 
@@ -1193,14 +1145,14 @@ def main() -> int:
             if confirmation.lower() != "yes":
                 print("Operation cancelled.")
                 return 0
-            
+
             if not initializer.drop_collections():
                 print("\nFailed to drop collections. Exiting.")
                 return 1
 
         # Create collections with validation and indexes
         print("\nCreating collections and indexes...\n")
-        
+
         success = True
         success = initializer.create_users_collection() and success
         success = initializer.create_assets_collection() and success
@@ -1229,6 +1181,7 @@ def main() -> int:
         print(f"\nUnexpected error: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
