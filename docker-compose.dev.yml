@@ -1,0 +1,223 @@
+# =============================================================================
+# META-STAMP V3 - Docker Compose Development Overrides
+# =============================================================================
+# This file provides development-specific overrides for docker-compose.yml
+# enabling hot-reload, debug ports, and development-optimized configurations.
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Or with Docker Compose V2:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Features:
+#   - Hot-reload for backend (uvicorn --reload) and frontend (Vite HMR)
+#   - Source code volume mounts for live editing without rebuilds
+#   - Debug ports exposed for debugpy (Python) and browser DevTools
+#   - Direct access to MongoDB, Redis, and MinIO for development tools
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # Backend Service - Development Overrides
+  # ===========================================================================
+  # Enables Python hot-reload via uvicorn --reload and exposes debugpy port
+  # for remote debugging with VS Code or PyCharm.
+  #
+  # Volume mounts allow live code editing - changes are reflected immediately
+  # without requiring container rebuilds.
+  # ===========================================================================
+  backend:
+    # Override the production command with development server
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/app
+      --log-level debug
+
+    # Mount source code for hot-reload without rebuilding container
+    volumes:
+      # Mount entire backend directory for live code editing
+      - ./backend:/app:cached
+      # Mount Poetry cache to speed up dependency resolution
+      - backend_poetry_cache:/root/.cache/pypoetry
+      # Exclude virtual environment from sync (use container's venv)
+      - /app/.venv
+
+    # Expose additional ports for development
+    ports:
+      # FastAPI application port
+      - "8000:8000"
+      # Debugpy port for Python remote debugging
+      # Connect from VS Code with launch.json configuration:
+      # {
+      #   "name": "Python: Remote Attach",
+      #   "type": "python",
+      #   "request": "attach",
+      #   "connect": { "host": "localhost", "port": 5678 }
+      # }
+      - "5678:5678"
+
+    # Development-specific environment variables
+    environment:
+      # Enable debug mode for verbose logging and error details
+      - DEBUG=true
+      # Set logging level to debug for maximum visibility
+      - LOG_LEVEL=debug
+      # Development environment indicator
+      - APP_ENV=development
+      # Enable debugpy for remote debugging (optional, start with --wait-for-client)
+      - PYTHONDONTWRITEBYTECODE=1
+      # Disable Python bytecode caching for cleaner development
+      - PYTHONUNBUFFERED=1
+      # Force Python to run unbuffered for real-time log output
+
+    # Enable stdin for interactive debugging sessions
+    stdin_open: true
+    tty: true
+
+  # ===========================================================================
+  # Frontend Service - Development Overrides
+  # ===========================================================================
+  # Runs Vite development server with Hot Module Replacement (HMR) for
+  # instant updates when React components or styles change.
+  #
+  # Volume mounts enable live editing of source code, with changes reflected
+  # in the browser immediately via Vite's fast refresh.
+  # ===========================================================================
+  frontend:
+    # Override production nginx with Vite development server
+    command: npm run dev -- --host 0.0.0.0
+
+    # Mount source code directories for hot-reload
+    volumes:
+      # Mount src directory for component hot-reload
+      - ./frontend/src:/app/src:cached
+      # Mount public directory for static assets
+      - ./frontend/public:/app/public:cached
+      # Mount index.html for template changes
+      - ./frontend/index.html:/app/index.html:cached
+      # Mount Vite config for configuration changes
+      - ./frontend/vite.config.ts:/app/vite.config.ts:cached
+      # Mount TypeScript config
+      - ./frontend/tsconfig.json:/app/tsconfig.json:cached
+      # Mount TailwindCSS config for style customization
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js:cached
+      # Mount PostCSS config
+      - ./frontend/postcss.config.js:/app/postcss.config.js:cached
+      # Cache node_modules to avoid reinstalling on container restart
+      - frontend_node_modules:/app/node_modules
+
+    # Expose Vite development server port with HMR
+    ports:
+      # Vite dev server (HMR enabled)
+      - "3000:3000"
+      # Vite HMR WebSocket port (for certain network configurations)
+      - "24678:24678"
+
+    # Development-specific environment variables
+    environment:
+      # Enable Vite development mode
+      - VITE_DEV_MODE=true
+      # Point to local backend API
+      - VITE_API_URL=http://localhost:8000
+      # Node environment
+      - NODE_ENV=development
+      # Disable host check for Docker networking
+      - CHOKIDAR_USEPOLLING=true
+      # Enable file watching in Docker (required for some systems)
+
+    # Enable stdin for interactive commands
+    stdin_open: true
+    tty: true
+
+  # ===========================================================================
+  # MongoDB Service - Development Overrides
+  # ===========================================================================
+  # Exposes MongoDB port for direct access via database clients like
+  # MongoDB Compass, Studio 3T, or command-line mongosh.
+  #
+  # Development access URL: mongodb://admin:password@localhost:27017/
+  # ===========================================================================
+  mongodb:
+    # Expose MongoDB port for direct access from host machine
+    ports:
+      - "27017:27017"
+
+    # Development-specific environment (can override for different credentials)
+    environment:
+      # Explicit root credentials for development (matches base compose)
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+      # Initialize metastamp database on first run
+      - MONGO_INITDB_DATABASE=metastamp
+
+  # ===========================================================================
+  # Redis Service - Development Overrides
+  # ===========================================================================
+  # Exposes Redis port for direct access via Redis clients like
+  # Redis Insight, redis-cli, or application debugging.
+  #
+  # Development access: redis://localhost:6379
+  # ===========================================================================
+  redis:
+    # Expose Redis port for direct access from host machine
+    ports:
+      - "6379:6379"
+
+    # Optional: Enable more verbose logging for debugging
+    command: redis-server --appendonly yes --loglevel verbose
+
+  # ===========================================================================
+  # MinIO Service - Development Overrides
+  # ===========================================================================
+  # Exposes MinIO Console port for bucket management and object browsing.
+  #
+  # Console URL: http://localhost:9001
+  # API URL: http://localhost:9000
+  # Default credentials: minioadmin / minioadmin
+  # ===========================================================================
+  minio:
+    # Expose both API and Console ports
+    ports:
+      # MinIO S3-compatible API
+      - "9000:9000"
+      # MinIO Web Console for bucket management
+      - "9001:9001"
+
+    # Development-specific environment
+    environment:
+      # Console address (already set in base, explicit for clarity)
+      - MINIO_BROWSER_REDIRECT_URL=http://localhost:9001
+
+# =============================================================================
+# Development Volumes
+# =============================================================================
+# Additional named volumes for development caching to improve performance
+# when rebuilding or restarting containers.
+# =============================================================================
+volumes:
+  # Cache Poetry dependencies to speed up backend dependency resolution
+  backend_poetry_cache:
+    driver: local
+
+  # Persist node_modules to avoid reinstalling on container restart
+  # This significantly improves frontend container startup time
+  frontend_node_modules:
+    driver: local
+
+# =============================================================================
+# Network Configuration (inherits from base docker-compose.yml)
+# =============================================================================
+# The development override uses the same network as the base configuration
+# to ensure all services can communicate with each other.
+#
+# Service discovery within the network:
+#   - Backend: http://backend:8000
+#   - Frontend: http://frontend:3000
+#   - MongoDB: mongodb://mongodb:27017
+#   - Redis: redis://redis:6379
+#   - MinIO: http://minio:9000
+# =============================================================================
