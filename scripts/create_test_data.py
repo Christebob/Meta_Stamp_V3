@@ -334,7 +334,9 @@ class TestDataGenerator:
                 "username": self.fake.unique.user_name()[:20],
                 "full_name": self.fake.name(),
                 "profile_image_url": f"https://api.dicebear.com/7.x/avatars/svg?seed={uuid.uuid4().hex[:8]}",
-                "bio": self.fake.text(max_nb_chars=200) if random.random() > 0.3 else None,
+                "bio": (
+                    self.fake.text(max_nb_chars=200) if random.random() > 0.3 else None
+                ),
                 "followers_count": random.randint(100, 1000000),
                 "content_hours": round(random.uniform(1.0, 5000.0), 2),
                 "total_views": random.randint(1000, 100000000),
@@ -363,7 +365,9 @@ class TestDataGenerator:
         self._user_ids = user_ids
         return user_ids
 
-    def generate_assets(self, user_ids: List[ObjectId], total_count: int) -> List[Dict[str, Any]]:
+    def generate_assets(
+        self, user_ids: List[ObjectId], total_count: int
+    ) -> List[Dict[str, Any]]:
         """
         Generate sample assets across all supported file types.
 
@@ -419,7 +423,9 @@ class TestDataGenerator:
 
         return created_assets
 
-    def _create_asset_document(self, file_type: str, user_ids: List[ObjectId]) -> Dict[str, Any]:
+    def _create_asset_document(
+        self, file_type: str, user_ids: List[ObjectId]
+    ) -> Dict[str, Any]:
         """
         Create a single asset document based on file type.
 
@@ -446,7 +452,9 @@ class TestDataGenerator:
         if file_type == "url":
             # URL-based asset
             platform = random.choice(config["platforms"])
-            return self._create_url_asset(asset_id, user_id, platform, created_at, upload_status)
+            return self._create_url_asset(
+                asset_id, user_id, platform, created_at, upload_status
+            )
 
         # File-based asset
         extension = random.choice(config["extensions"])
@@ -470,7 +478,9 @@ class TestDataGenerator:
             "upload_status": upload_status,
             "processing_status": "completed" if upload_status == "ready" else "pending",
             "error_message": (
-                "Processing failed: Unknown error" if upload_status == "failed" else None
+                "Processing failed: Unknown error"
+                if upload_status == "failed"
+                else None
             ),
             "fingerprint_id": None,  # Will be linked after fingerprint creation
             "url_source": None,
@@ -617,10 +627,14 @@ class TestDataGenerator:
                 "color_space": random.choice(["RGB", "sRGB", "Adobe RGB"]),
                 "has_alpha": extension in [".png", ".webp"] and random.random() > 0.5,
                 "exif": {
-                    "camera_make": random.choice(["Canon", "Nikon", "Sony", "Apple", None]),
+                    "camera_make": random.choice(
+                        ["Canon", "Nikon", "Sony", "Apple", None]
+                    ),
                     "camera_model": self.fake.word() if random.random() > 0.3 else None,
                     "date_taken": (
-                        self.fake.date_time_between(start_date="-2y", end_date="now").isoformat()
+                        self.fake.date_time_between(
+                            start_date="-2y", end_date="now"
+                        ).isoformat()
                         if random.random() > 0.3
                         else None
                     ),
@@ -637,8 +651,12 @@ class TestDataGenerator:
                 "bit_rate": random.choice([128, 192, 256, 320]),
                 "codec": extension[1:].upper(),
                 "artist": self.fake.name() if random.random() > 0.3 else None,
-                "album": self.fake.sentence(nb_words=3) if random.random() > 0.5 else None,
-                "title": self.fake.sentence(nb_words=4) if random.random() > 0.3 else None,
+                "album": (
+                    self.fake.sentence(nb_words=3) if random.random() > 0.5 else None
+                ),
+                "title": (
+                    self.fake.sentence(nb_words=4) if random.random() > 0.3 else None
+                ),
             }
 
         elif file_type == "video":
@@ -658,7 +676,9 @@ class TestDataGenerator:
 
         return {}
 
-    def generate_fingerprints(self, assets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def generate_fingerprints(
+        self, assets: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Generate fingerprint data for each asset.
 
@@ -694,10 +714,14 @@ class TestDataGenerator:
                 )
 
             except DuplicateKeyError:
-                self.log(f"  Skipped duplicate fingerprint for asset {asset['_id']}", "DEBUG")
+                self.log(
+                    f"  Skipped duplicate fingerprint for asset {asset['_id']}", "DEBUG"
+                )
                 continue
 
-        self.log(f"Successfully created {len(created_fingerprints)} fingerprints", "INFO")
+        self.log(
+            f"Successfully created {len(created_fingerprints)} fingerprints", "INFO"
+        )
         return created_fingerprints
 
     def _create_fingerprint_document(self, asset: Dict[str, Any]) -> Dict[str, Any]:
@@ -797,7 +821,9 @@ class TestDataGenerator:
             "spectral_bandwidth": round(random.uniform(1000.0, 4000.0), 2),
             "spectral_rolloff": round(random.uniform(2000.0, 10000.0), 2),
             "zero_crossing_rate": round(random.uniform(0.01, 0.2), 4),
-            "mfcc_coefficients": [round(random.uniform(-50.0, 50.0), 2) for _ in range(20)],
+            "mfcc_coefficients": [
+                round(random.uniform(-50.0, 50.0), 2) for _ in range(20)
+            ],
         }
 
     def _generate_video_hashes(self) -> Dict[str, Any]:
@@ -932,7 +958,9 @@ class TestDataGenerator:
         )
         return created_wallets
 
-    def _generate_transactions(self, user_id: ObjectId, count: int) -> List[Dict[str, Any]]:
+    def _generate_transactions(
+        self, user_id: ObjectId, count: int
+    ) -> List[Dict[str, Any]]:
         """
         Generate transaction history for a user.
 
@@ -1005,7 +1033,9 @@ class TestDataGenerator:
                     if tx_type == "earning" and self._asset_ids
                     else None
                 ),
-                "reference_id": str(uuid.uuid4())[:8] if tx_status == "completed" else None,
+                "reference_id": (
+                    str(uuid.uuid4())[:8] if tx_status == "completed" else None
+                ),
                 "timestamp": timestamp,
                 "completed_at": (
                     timestamp + timedelta(minutes=random.randint(1, 60))
@@ -1021,7 +1051,9 @@ class TestDataGenerator:
         transactions.sort(key=lambda x: x["timestamp"])
         return transactions
 
-    def generate_analytics(self, assets: List[Dict[str, Any]], count: int) -> List[Dict[str, Any]]:
+    def generate_analytics(
+        self, assets: List[Dict[str, Any]], count: int
+    ) -> List[Dict[str, Any]]:
         """
         Generate AI Touch Value™ calculation records.
 
@@ -1083,7 +1115,13 @@ class TestDataGenerator:
                 "version": "1.0",
                 "metadata": {
                     "model_name": random.choice(
-                        ["GPT-4", "Claude-3", "Gemini-Pro", "LLaMA-3", "Stable Diffusion XL"]
+                        [
+                            "GPT-4",
+                            "Claude-3",
+                            "Gemini-Pro",
+                            "LLaMA-3",
+                            "Stable Diffusion XL",
+                        ]
                     ),
                     "calculation_type": "automated",
                 },
@@ -1103,12 +1141,14 @@ class TestDataGenerator:
 
         # Calculate average value
         if created_analytics:
-            avg_value = sum(float(a["calculated_value"]) for a in created_analytics) / len(
-                created_analytics
-            )
+            avg_value = sum(
+                float(a["calculated_value"]) for a in created_analytics
+            ) / len(created_analytics)
             self.log(f"Average AI Touch Value™: ${avg_value:,.2f}", "DEBUG")
 
-        self.log(f"Successfully created {len(created_analytics)} analytics records", "INFO")
+        self.log(
+            f"Successfully created {len(created_analytics)} analytics records", "INFO"
+        )
         return created_analytics
 
     def validate_data(self) -> bool:
@@ -1146,7 +1186,9 @@ class TestDataGenerator:
             fingerprints_collection = self.db[COLLECTIONS["fingerprints"]]
 
             # Get all user IDs
-            valid_user_ids = set(u["_id"] for u in users_collection.find({}, {"_id": 1}))
+            valid_user_ids = set(
+                u["_id"] for u in users_collection.find({}, {"_id": 1})
+            )
 
             # Check assets
             orphan_assets = assets_collection.count_documents(
@@ -1159,7 +1201,9 @@ class TestDataGenerator:
                 self.log("  ✓ All assets have valid user_id references", "INFO")
 
             # Check fingerprints reference valid assets
-            valid_asset_ids = set(a["_id"] for a in assets_collection.find({}, {"_id": 1}))
+            valid_asset_ids = set(
+                a["_id"] for a in assets_collection.find({}, {"_id": 1})
+            )
             orphan_fingerprints = fingerprints_collection.count_documents(
                 {"asset_id": {"$nin": list(valid_asset_ids)}}
             )
@@ -1185,7 +1229,8 @@ class TestDataGenerator:
             # Calculate total wallet balance
             wallet_collection = self.db[COLLECTIONS["wallet"]]
             total_balance = sum(
-                float(w.get("balance", 0)) for w in wallet_collection.find({}, {"balance": 1})
+                float(w.get("balance", 0))
+                for w in wallet_collection.find({}, {"balance": 1})
             )
             self.log(f"\nTotal Wallet Balance: ${total_balance:,.2f}", "INFO")
 

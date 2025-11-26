@@ -151,7 +151,10 @@ class DatabaseInitializer:
                 return True
 
             except ConnectionFailure as e:
-                self.log(f"Connection attempt {attempt + 1}/{max_retries} failed: {e}", "WARNING")
+                self.log(
+                    f"Connection attempt {attempt + 1}/{max_retries} failed: {e}",
+                    "WARNING",
+                )
                 if attempt < max_retries - 1:
                     self.log(f"Retrying in {retry_delay} seconds...", "INFO")
                     import time
@@ -161,7 +164,10 @@ class DatabaseInitializer:
 
             except ServerSelectionTimeoutError as e:
                 self.log(f"Server selection timeout: {e}", "ERROR")
-                self.log("Ensure MongoDB is running and accessible at the configured URI.", "ERROR")
+                self.log(
+                    "Ensure MongoDB is running and accessible at the configured URI.",
+                    "ERROR",
+                )
                 return False
 
             except Exception as e:
@@ -205,7 +211,10 @@ class DatabaseInitializer:
                     self.db[collection_name].drop()
                     self.log(f"Dropped collection: {collection_name}", "WARNING")
                 else:
-                    self.log(f"Collection {collection_name} does not exist, skipping", "DEBUG")
+                    self.log(
+                        f"Collection {collection_name} does not exist, skipping",
+                        "DEBUG",
+                    )
 
             self.log("All collections dropped successfully", "INFO")
             return True
@@ -235,7 +244,10 @@ class DatabaseInitializer:
         """
         try:
             if name in self.db.list_collection_names():
-                self.log(f"Collection {name} already exists, updating validation rules", "DEBUG")
+                self.log(
+                    f"Collection {name} already exists, updating validation rules",
+                    "DEBUG",
+                )
                 # Update validation rules on existing collection
                 self.db.command(
                     "collMod",
@@ -318,11 +330,15 @@ class DatabaseInitializer:
         }
 
         try:
-            collection = self.create_collection_with_validation(COLLECTIONS["users"], validator)
+            collection = self.create_collection_with_validation(
+                COLLECTIONS["users"], validator
+            )
 
             # Create indexes
             indexes = [
-                IndexModel([("email", ASCENDING)], unique=True, name="email_unique_idx"),
+                IndexModel(
+                    [("email", ASCENDING)], unique=True, name="email_unique_idx"
+                ),
                 IndexModel(
                     [("auth0_id", ASCENDING)],
                     unique=True,
@@ -406,7 +422,10 @@ class DatabaseInitializer:
                         "bsonType": ["date", "null"],
                         "description": "Last update timestamp (optional)",
                     },
-                    "mime_type": {"bsonType": "string", "description": "MIME type of the file"},
+                    "mime_type": {
+                        "bsonType": "string",
+                        "description": "MIME type of the file",
+                    },
                     "original_url": {
                         "bsonType": ["string", "null"],
                         "description": "Original URL for URL-type assets",
@@ -435,7 +454,9 @@ class DatabaseInitializer:
         }
 
         try:
-            collection = self.create_collection_with_validation(COLLECTIONS["assets"], validator)
+            collection = self.create_collection_with_validation(
+                COLLECTIONS["assets"], validator
+            )
 
             # Create indexes
             indexes = [
@@ -447,13 +468,23 @@ class DatabaseInitializer:
                 IndexModel([("upload_status", ASCENDING)], name="upload_status_idx"),
                 IndexModel([("file_type", ASCENDING)], name="file_type_idx"),
                 IndexModel([("created_at", DESCENDING)], name="created_at_idx"),
-                IndexModel([("s3_key", ASCENDING)], unique=True, name="s3_key_unique_idx"),
-                IndexModel([("fingerprint_id", ASCENDING)], sparse=True, name="fingerprint_id_idx"),
+                IndexModel(
+                    [("s3_key", ASCENDING)], unique=True, name="s3_key_unique_idx"
+                ),
+                IndexModel(
+                    [("fingerprint_id", ASCENDING)],
+                    sparse=True,
+                    name="fingerprint_id_idx",
+                ),
                 # Phase 2 indexes (conditional - for future use)
                 IndexModel(
-                    [("training_detected", ASCENDING)], sparse=True, name="training_detected_idx"
+                    [("training_detected", ASCENDING)],
+                    sparse=True,
+                    name="training_detected_idx",
                 ),
-                IndexModel([("legal_status", ASCENDING)], sparse=True, name="legal_status_idx"),
+                IndexModel(
+                    [("legal_status", ASCENDING)], sparse=True, name="legal_status_idx"
+                ),
             ]
 
             self._create_indexes_safely(collection, indexes)
@@ -490,9 +521,18 @@ class DatabaseInitializer:
                                 "bsonType": "string",
                                 "description": "Perceptual hash (DCT-based)",
                             },
-                            "aHash": {"bsonType": "string", "description": "Average hash"},
-                            "dHash": {"bsonType": "string", "description": "Difference hash"},
-                            "wHash": {"bsonType": "string", "description": "Wavelet hash"},
+                            "aHash": {
+                                "bsonType": "string",
+                                "description": "Average hash",
+                            },
+                            "dHash": {
+                                "bsonType": "string",
+                                "description": "Difference hash",
+                            },
+                            "wHash": {
+                                "bsonType": "string",
+                                "description": "Wavelet hash",
+                            },
                         },
                         "description": "Perceptual hash values for image fingerprinting",
                     },
@@ -508,7 +548,10 @@ class DatabaseInitializer:
                                 "bsonType": "array",
                                 "description": "Mel-frequency spectrogram data",
                             },
-                            "chromagram": {"bsonType": "array", "description": "Chromagram data"},
+                            "chromagram": {
+                                "bsonType": "array",
+                                "description": "Chromagram data",
+                            },
                             "spectral_centroid": {
                                 "bsonType": "double",
                                 "description": "Spectral centroid value",
@@ -565,7 +608,11 @@ class DatabaseInitializer:
                 ),
                 IndexModel([("created_at", DESCENDING)], name="created_at_idx"),
                 # Indexes for hash-based lookups (Phase 2 similarity search)
-                IndexModel([("perceptual_hashes.pHash", ASCENDING)], sparse=True, name="phash_idx"),
+                IndexModel(
+                    [("perceptual_hashes.pHash", ASCENDING)],
+                    sparse=True,
+                    name="phash_idx",
+                ),
             ]
 
             self._create_indexes_safely(collection, indexes)
@@ -665,7 +712,9 @@ class DatabaseInitializer:
         }
 
         try:
-            collection = self.create_collection_with_validation(COLLECTIONS["wallet"], validator)
+            collection = self.create_collection_with_validation(
+                COLLECTIONS["wallet"], validator
+            )
 
             # Create indexes
             indexes = [
@@ -675,10 +724,15 @@ class DatabaseInitializer:
                     name="user_id_unique_idx",
                 ),
                 IndexModel(
-                    [("transactions.timestamp", DESCENDING)], name="transactions_timestamp_idx"
+                    [("transactions.timestamp", DESCENDING)],
+                    name="transactions_timestamp_idx",
                 ),
-                IndexModel([("transactions.status", ASCENDING)], name="transactions_status_idx"),
-                IndexModel([("transactions.type", ASCENDING)], name="transactions_type_idx"),
+                IndexModel(
+                    [("transactions.status", ASCENDING)], name="transactions_status_idx"
+                ),
+                IndexModel(
+                    [("transactions.type", ASCENDING)], name="transactions_type_idx"
+                ),
             ]
 
             self._create_indexes_safely(collection, indexes)
@@ -767,7 +821,9 @@ class DatabaseInitializer:
         }
 
         try:
-            collection = self.create_collection_with_validation(COLLECTIONS["analytics"], validator)
+            collection = self.create_collection_with_validation(
+                COLLECTIONS["analytics"], validator
+            )
 
             # Create indexes
             indexes = [
@@ -779,9 +835,12 @@ class DatabaseInitializer:
                 ),
                 IndexModel([("timestamp", DESCENDING)], name="timestamp_idx"),
                 IndexModel(
-                    [("user_id", ASCENDING), ("timestamp", DESCENDING)], name="user_historical_idx"
+                    [("user_id", ASCENDING), ("timestamp", DESCENDING)],
+                    name="user_historical_idx",
                 ),
-                IndexModel([("calculation_type", ASCENDING)], name="calculation_type_idx"),
+                IndexModel(
+                    [("calculation_type", ASCENDING)], name="calculation_type_idx"
+                ),
             ]
 
             self._create_indexes_safely(collection, indexes)
@@ -793,7 +852,9 @@ class DatabaseInitializer:
             self._error_count += 1
             return False
 
-    def _create_indexes_safely(self, collection: Collection, indexes: List[IndexModel]) -> None:
+    def _create_indexes_safely(
+        self, collection: Collection, indexes: List[IndexModel]
+    ) -> None:
         """
         Create indexes safely, handling existing indexes.
 
@@ -809,7 +870,9 @@ class DatabaseInitializer:
                 # Check if index already exists
                 existing_indexes = collection.index_information()
                 if index_name in existing_indexes:
-                    self.log(f"  Index '{index_name}' already exists, skipping", "DEBUG")
+                    self.log(
+                        f"  Index '{index_name}' already exists, skipping", "DEBUG"
+                    )
                     continue
 
                 collection.create_indexes([index])
@@ -883,7 +946,9 @@ class DatabaseInitializer:
 
             # Display admin credentials (with masked password)
             masked_password = (
-                admin_password[:2] + "*" * (len(admin_password) - 4) + admin_password[-2:]
+                admin_password[:2]
+                + "*" * (len(admin_password) - 4)
+                + admin_password[-2:]
             )
             self.log("=" * 60, "INFO")
             self.log("Admin user created successfully!", "INFO")
@@ -899,7 +964,9 @@ class DatabaseInitializer:
             return True
 
         except DuplicateKeyError:
-            self.log(f"Admin user '{admin_email}' already exists (duplicate key)", "INFO")
+            self.log(
+                f"Admin user '{admin_email}' already exists (duplicate key)", "INFO"
+            )
             return True
 
         except Exception as e:
@@ -980,7 +1047,10 @@ class DatabaseInitializer:
                     if self.verbose:
                         for idx_name, idx_info in indexes.items():
                             if idx_name != "_id_":
-                                self.log(f"    - {idx_name}: {idx_info.get('key', {})}", "DEBUG")
+                                self.log(
+                                    f"    - {idx_name}: {idx_info.get('key', {})}",
+                                    "DEBUG",
+                                )
                 else:
                     self.log(f"  ✗ {collection_name}: MISSING", "ERROR")
                     all_valid = False
@@ -1107,7 +1177,9 @@ Environment Variables:
         "--verbose", "-v", action="store_true", help="Display detailed operation logs"
     )
 
-    parser.add_argument("--skip-admin", action="store_true", help="Skip admin user creation")
+    parser.add_argument(
+        "--skip-admin", action="store_true", help="Skip admin user creation"
+    )
 
     return parser.parse_args()
 
