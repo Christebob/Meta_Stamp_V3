@@ -1,0 +1,335 @@
+# =============================================================================
+# META-STAMP V3 - Docker Compose Orchestration
+# =============================================================================
+# Multi-service architecture for the META-STAMP creator protection platform.
+# This file defines the complete development and production environment with:
+# - Backend: FastAPI application server
+# - Frontend: React 18 + TypeScript + Vite application
+# - MongoDB: Document database for assets, users, and analytics
+# - Redis: Caching layer and session management
+# - MinIO: S3-compatible object storage for file uploads
+#
+# Usage:
+#   Development: docker-compose up -d
+#   Production:  docker-compose -f docker-compose.yml up -d
+#   With dev overrides: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# All services communicate via the metastamp-network bridge network.
+# Persistent data is stored in named volumes for durability across restarts.
+# =============================================================================
+
+version: "3.8"
+
+services:
+  # ===========================================================================
+  # MongoDB Database Service
+  # ===========================================================================
+  # Primary document database storing assets, users, fingerprints, wallet
+  # transactions, and analytics data. Uses MongoDB 8.0 for latest features
+  # including improved query performance and native time-series collections.
+  # ===========================================================================
+  mongodb:
+    image: mongo:8.0
+    container_name: metastamp-mongodb
+    restart: unless-stopped
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    environment:
+      # Root credentials for initial setup - override via .env file
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-metastamp_admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-metastamp_secret_password}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-metastamp}
+    volumes:
+      # Persistent storage for database files
+      - mongodb_data:/data/db
+      # Optional: Mount initialization scripts
+      - ./scripts/mongo-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Verify MongoDB is accepting connections
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - metastamp-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # Redis Cache Service
+  # ===========================================================================
+  # In-memory cache and session store providing fast access to frequently
+  # requested data, conversation context for AI assistant, and JWT session
+  # management. Configured with append-only file (AOF) persistence for
+  # durability without sacrificing performance.
+  # ===========================================================================
+  redis:
+    image: redis:7.4-alpine
+    container_name: metastamp-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      # Persistent storage for Redis AOF and RDB files
+      - redis_data:/data
+    healthcheck:
+      # Verify Redis is responding to commands
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - metastamp-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # MinIO Object Storage Service
+  # ===========================================================================
+  # S3-compatible object storage for file uploads. Provides local development
+  # environment that mirrors production S3 behavior. Supports presigned URLs
+  # for direct client uploads and multipart uploads for large files.
+  # Console available at http://localhost:9001 for bucket management.
+  # ===========================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: metastamp-minio
+    restart: unless-stopped
+    ports:
+      # S3 API endpoint
+      - "${MINIO_API_PORT:-9000}:9000"
+      # MinIO Console (web UI)
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      # Root credentials for MinIO - override via .env file
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-metastamp_minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-metastamp_minio_secret}
+      # Enable browser console
+      MINIO_BROWSER: "on"
+    command: server /data --console-address ":9001"
+    volumes:
+      # Persistent storage for uploaded files
+      - minio_data:/data
+    healthcheck:
+      # Verify MinIO is healthy via liveness endpoint
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - metastamp-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # Backend FastAPI Service
+  # ===========================================================================
+  # Python 3.11+ FastAPI application providing REST API endpoints for:
+  # - File uploads (direct and presigned URL flows)
+  # - Multi-modal fingerprinting (images, audio, video, text)
+  # - AI Touch Value™ calculations
+  # - AI assistant with LangChain multi-provider support
+  # - Authentication via Auth0 or local JWT fallback
+  # - Wallet and transaction management
+  # ===========================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: metastamp-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      # Application settings
+      APP_NAME: "META-STAMP V3"
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+      # MongoDB connection
+      MONGODB_URL: mongodb://${MONGO_INITDB_ROOT_USERNAME:-metastamp_admin}:${MONGO_INITDB_ROOT_PASSWORD:-metastamp_secret_password}@mongodb:27017
+      MONGODB_DATABASE: ${MONGO_INITDB_DATABASE:-metastamp}
+
+      # Redis connection
+      REDIS_URL: redis://redis:6379/0
+
+      # S3/MinIO configuration (S3-compatible interface)
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-metastamp_minio_admin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-metastamp_minio_secret}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-metastamp-assets}
+      S3_REGION: ${S3_REGION:-us-east-1}
+
+      # Auth0 configuration (optional - falls back to local JWT if not configured)
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET:-}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-}
+
+      # Local JWT fallback configuration (used when Auth0 is not configured)
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-metastamp-local-jwt-secret-key-change-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+
+      # LangChain AI provider configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      DEFAULT_AI_PROVIDER: ${DEFAULT_AI_PROVIDER:-openai}
+      DEFAULT_AI_MODEL: ${DEFAULT_AI_MODEL:-gpt-4}
+
+      # Upload configuration
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-500}
+      DIRECT_UPLOAD_THRESHOLD_MB: ${DIRECT_UPLOAD_THRESHOLD_MB:-10}
+      PRESIGNED_URL_EXPIRATION_SECONDS: ${PRESIGNED_URL_EXPIRATION_SECONDS:-900}
+
+      # CORS configuration
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:80,http://frontend:3000}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      # Verify FastAPI is responding
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    networks:
+      - metastamp-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # ===========================================================================
+  # Frontend React Service
+  # ===========================================================================
+  # React 18 + TypeScript + Vite application providing the user interface:
+  # - Universal dashboard with asset management
+  # - Smart uploader with drag-and-drop and URL import
+  # - AI Touch Score™ and Value™ visualizations
+  # - AI assistant chat interface
+  # - Wallet and transaction history views
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: metastamp-frontend
+    restart: unless-stopped
+    ports:
+      # Development server (Vite) or production (nginx)
+      - "${FRONTEND_PORT:-3000}:3000"
+      # Production nginx (alternative port)
+      - "${FRONTEND_PROD_PORT:-80}:80"
+    environment:
+      # Frontend environment variables (VITE_ prefix required for Vite)
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
+      VITE_AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+      VITE_AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
+      VITE_AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-}
+      VITE_APP_NAME: "META-STAMP V3"
+      NODE_ENV: ${NODE_ENV:-production}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - metastamp-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # MinIO Bucket Initialization Service (one-time setup)
+  # ===========================================================================
+  # Creates required S3 buckets on first startup. Runs once and exits.
+  # This ensures the metastamp-assets bucket exists before the backend starts
+  # attempting to upload files.
+  # ===========================================================================
+  minio-init:
+    image: minio/mc:latest
+    container_name: metastamp-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-metastamp_minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-metastamp_minio_secret}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-metastamp-assets}
+    entrypoint: >
+      /bin/sh -c "
+        echo 'Waiting for MinIO to be ready...';
+        sleep 5;
+        mc alias set myminio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+        mc mb myminio/$${S3_BUCKET_NAME} --ignore-existing;
+        mc anonymous set download myminio/$${S3_BUCKET_NAME};
+        echo 'MinIO bucket $${S3_BUCKET_NAME} created and configured.';
+        exit 0;
+      "
+    networks:
+      - metastamp-network
+
+# =============================================================================
+# Networks Configuration
+# =============================================================================
+# Bridge network enabling inter-service communication using service names as
+# DNS hostnames. All services are isolated from external networks except
+# through explicitly mapped ports.
+# =============================================================================
+networks:
+  metastamp-network:
+    driver: bridge
+    name: metastamp-network
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+
+# =============================================================================
+# Volumes Configuration
+# =============================================================================
+# Named volumes for persistent data storage. Data survives container restarts
+# and rebuilds. Use 'docker-compose down -v' to remove volumes (caution: data loss).
+# =============================================================================
+volumes:
+  # MongoDB database files
+  mongodb_data:
+    driver: local
+    name: metastamp-mongodb-data
+
+  # Redis persistence files (AOF and RDB)
+  redis_data:
+    driver: local
+    name: metastamp-redis-data
+
+  # MinIO object storage files
+  minio_data:
+    driver: local
+    name: metastamp-minio-data
