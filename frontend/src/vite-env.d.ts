@@ -421,9 +421,7 @@ declare module '*?worker&inline' {
  * Returns the init function for WebAssembly modules.
  */
 declare module '*.wasm?init' {
-  const init: (
-    options?: WebAssembly.Imports
-  ) => Promise<WebAssembly.Instance>;
+  const init: (options?: WebAssembly.Imports) => Promise<WebAssembly.Instance>;
   export default init;
 }
 
