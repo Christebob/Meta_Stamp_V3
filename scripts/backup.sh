@@ -40,12 +40,31 @@ set -o pipefail   # Exit on pipe failure
 # CONSTANTS AND DEFAULTS
 # =============================================================================
 
-readonly SCRIPT_NAME="$(basename "$0")"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly ROOT_DIR="$(dirname "$SCRIPT_DIR")"
-readonly TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-readonly DATE_DIR="$(date +%Y%m%d)"
-readonly LOG_FILE="/tmp/metastamp_backup_${TIMESTAMP}.log"
+# Declare variables first, then assign to avoid masking return values (shellcheck SC2155)
+SCRIPT_NAME=""
+SCRIPT_DIR=""
+ROOT_DIR=""
+TIMESTAMP=""
+DATE_DIR=""
+LOG_FILE=""
+
+SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_NAME
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+readonly ROOT_DIR
+
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+readonly TIMESTAMP
+
+DATE_DIR="$(date +%Y%m%d)"
+readonly DATE_DIR
+
+LOG_FILE="/tmp/metastamp_backup_${TIMESTAMP}.log"
+readonly LOG_FILE
 
 # Default configuration values
 DEFAULT_MONGODB_URI="mongodb://localhost:27017"
@@ -671,8 +690,8 @@ main() {
     
     # Create compressed archive
     local archive_path
-    archive_path=$(create_archive "$temp_backup_path" "$archive_name")
-    if [[ $? -ne 0 ]] || [[ -z "$archive_path" ]]; then
+    # Check exit code directly (shellcheck SC2181)
+    if ! archive_path=$(create_archive "$temp_backup_path" "$archive_name") || [[ -z "$archive_path" ]]; then
         die "Archive creation failed" "$EXIT_ERROR_COMPRESSION_FAILED"
     fi
     

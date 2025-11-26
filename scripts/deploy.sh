@@ -50,10 +50,19 @@ set -euo pipefail
 # Configuration and Global Variables
 # =============================================================================
 
-# Script metadata
-readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Script metadata (declare and assign separately to avoid masking return values - shellcheck SC2155)
+SCRIPT_NAME=""
+SCRIPT_DIR=""
+REPO_ROOT=""
+
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+readonly SCRIPT_NAME
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly REPO_ROOT
 
 # Version tracking
 readonly DEPLOY_VERSION="1.0.0"
