@@ -163,6 +163,16 @@ ignore = [
     # EM102: Exception must not use an f-string literal
     # Reason: f-strings in exceptions are clear and Pythonic
     "EM102",
+    
+    # TRY300: Consider moving this statement to an `else` block
+    # Reason: While moving return to else is cleaner, it's a stylistic preference
+    # The current pattern (return after try success) is clear and well-understood
+    "TRY300",
+    
+    # TRY301: Abstract `raise` to an inner function
+    # Reason: Direct raise statements in validation blocks are more readable
+    # than abstracting to inner functions for simple validation patterns
+    "TRY301",
 ]
 
 # Allow autofix for all enabled rules (when `--fix` is provided)
