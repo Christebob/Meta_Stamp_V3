@@ -1,14 +1,67 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- Character encoding for proper text rendering -->
     <meta charset="UTF-8" />
+    
+    <!-- Favicon for browser tab -->
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    
+    <!-- Viewport configuration for responsive design on mobile devices -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Theme color for mobile browser UI (address bar, etc.) -->
+    <meta name="theme-color" content="#1e40af" />
+    
+    <!-- Primary page title -->
     <title>META-STAMP V3 - Creator Protection Platform</title>
-    <meta name="description" content="Global compensation foundation between AI companies and creators" />
+    
+    <!-- SEO: Page description for search engines -->
+    <meta name="description" content="META-STAMP V3 is a comprehensive creator protection platform serving as a global compensation foundation between AI companies and creators. Protect your creative assets with advanced fingerprinting and track AI training usage." />
+    
+    <!-- SEO: Keywords for search engine optimization -->
+    <meta name="keywords" content="creator protection, AI training detection, digital fingerprinting, content creators, AI compensation, intellectual property" />
+    
+    <!-- SEO: Author information -->
+    <meta name="author" content="META-STAMP" />
+    
+    <!-- Open Graph meta tags for social media sharing -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="META-STAMP V3 - Creator Protection Platform" />
+    <meta property="og:description" content="Protect your creative assets and track AI training usage with advanced fingerprinting technology." />
+    <meta property="og:site_name" content="META-STAMP V3" />
+    
+    <!-- Twitter Card meta tags for Twitter sharing -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="META-STAMP V3 - Creator Protection Platform" />
+    <meta name="twitter:description" content="Protect your creative assets and track AI training usage with advanced fingerprinting technology." />
+    
+    <!-- Mobile web app configuration -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="META-STAMP V3" />
+    
+    <!-- Prevent automatic phone number detection on iOS -->
+    <meta name="format-detection" content="telephone=no" />
+    
+    <!-- Security: Content Security Policy base -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   </head>
   <body>
+    <!-- 
+      Root mounting point for React application.
+      React 18 createRoot will attach the application here.
+      Do not add content inside this div - React manages it entirely.
+    -->
     <div id="root"></div>
+    
+    <!-- 
+      Vite entry point script.
+      type="module" enables ES modules support.
+      Vite processes this and transforms the TypeScript entry point.
+      The /src/main.tsx path is resolved by Vite at build time.
+    -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
