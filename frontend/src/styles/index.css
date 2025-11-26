@@ -38,7 +38,7 @@
   /* --------------------------------------------------------------------------
      Brand Colors for META-STAMP V3
      -------------------------------------------------------------------------- */
-  
+
   /* Primary - Indigo (main brand color) */
   --color-primary: #6366f1;
   --color-primary-dark: #4f46e5;
@@ -53,25 +53,25 @@
   --color-primary-700: #4338ca;
   --color-primary-800: #3730a3;
   --color-primary-900: #312e81;
-  
+
   /* Secondary - Purple (accent color) */
   --color-secondary: #8b5cf6;
   --color-secondary-dark: #7c3aed;
   --color-secondary-light: #a78bfa;
-  
+
   /* Semantic Colors */
   --color-success: #10b981;
   --color-success-dark: #059669;
   --color-success-light: #34d399;
-  
+
   --color-warning: #f59e0b;
   --color-warning-dark: #d97706;
   --color-warning-light: #fbbf24;
-  
+
   --color-danger: #ef4444;
   --color-danger-dark: #dc2626;
   --color-danger-light: #f87171;
-  
+
   --color-info: #3b82f6;
   --color-info-dark: #2563eb;
   --color-info-light: #60a5fa;
@@ -81,7 +81,7 @@
      -------------------------------------------------------------------------- */
   --color-white: #ffffff;
   --color-black: #000000;
-  
+
   --color-gray-50: #f9fafb;
   --color-gray-100: #f3f4f6;
   --color-gray-200: #e5e7eb;
@@ -143,7 +143,7 @@
   --spacing-20: 5rem;
   --spacing-24: 6rem;
   --spacing-32: 8rem;
-  
+
   /* Semantic Spacing Aliases */
   --spacing-xs: var(--spacing-1);
   --spacing-sm: var(--spacing-2);
@@ -156,15 +156,17 @@
   /* --------------------------------------------------------------------------
      Typography
      -------------------------------------------------------------------------- */
-  
+
   /* Font Families */
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 
-               'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
-               'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-  --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 
-               'Liberation Mono', 'Courier New', monospace;
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-mono:
+    'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
   --font-serif: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
-  
+
   /* Font Sizes */
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
@@ -176,7 +178,7 @@
   --font-size-4xl: 2.25rem;
   --font-size-5xl: 3rem;
   --font-size-6xl: 3.75rem;
-  
+
   /* Line Heights */
   --line-height-none: 1;
   --line-height-tight: 1.25;
@@ -184,7 +186,7 @@
   --line-height-normal: 1.5;
   --line-height-relaxed: 1.625;
   --line-height-loose: 2;
-  
+
   /* Font Weights */
   --font-weight-thin: 100;
   --font-weight-extralight: 200;
@@ -195,7 +197,7 @@
   --font-weight-bold: 700;
   --font-weight-extrabold: 800;
   --font-weight-black: 900;
-  
+
   /* Letter Spacing */
   --letter-spacing-tighter: -0.05em;
   --letter-spacing-tight: -0.025em;
@@ -223,12 +225,14 @@
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-lg:
+    0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl:
+    0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
   --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
   --shadow-none: 0 0 #0000;
-  
+
   /* Colored Shadows for emphasis */
   --shadow-primary: 0 4px 14px 0 rgb(99 102 241 / 0.39);
   --shadow-success: 0 4px 14px 0 rgb(16 185 129 / 0.39);
@@ -253,7 +257,7 @@
   --transition-duration-normal: 200ms;
   --transition-duration-slow: 300ms;
   --transition-duration-slower: 500ms;
-  
+
   --transition-timing-default: cubic-bezier(0.4, 0, 0.2, 1);
   --transition-timing-in: cubic-bezier(0.4, 0, 1, 1);
   --transition-timing-out: cubic-bezier(0, 0, 0.2, 1);
@@ -470,7 +474,8 @@ samp {
   color: var(--color-white);
   font-weight: var(--font-weight-medium);
   z-index: calc(var(--z-index-fixed) + 1);
-  transition: top var(--transition-duration-normal) var(--transition-timing-default);
+  transition: top var(--transition-duration-normal)
+    var(--transition-timing-default);
 }
 
 .skip-link:focus {
@@ -527,22 +532,38 @@ samp {
    * Brand gradient background
    */
   .gradient-primary {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--color-primary) 0%,
+      var(--color-secondary) 100%
+    );
   }
 
   .gradient-primary-soft {
-    background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-primary-100) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--color-primary-50) 0%,
+      var(--color-primary-100) 100%
+    );
   }
 
   .gradient-primary-vertical {
-    background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    background: linear-gradient(
+      180deg,
+      var(--color-primary) 0%,
+      var(--color-secondary) 100%
+    );
   }
 
   /**
    * Text gradient effect
    */
   .text-gradient {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--color-primary) 0%,
+      var(--color-secondary) 100%
+    );
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -673,7 +694,8 @@ samp {
   }
 
   .animate-fade-in {
-    animation: fadeIn var(--transition-duration-normal) var(--transition-timing-default);
+    animation: fadeIn var(--transition-duration-normal)
+      var(--transition-timing-default);
   }
 
   /**
@@ -691,7 +713,8 @@ samp {
   }
 
   .animate-fade-in-up {
-    animation: fadeInUp var(--transition-duration-normal) var(--transition-timing-default);
+    animation: fadeInUp var(--transition-duration-normal)
+      var(--transition-timing-default);
   }
 
   /**
@@ -709,7 +732,8 @@ samp {
   }
 
   .animate-fade-in-down {
-    animation: fadeInDown var(--transition-duration-normal) var(--transition-timing-default);
+    animation: fadeInDown var(--transition-duration-normal)
+      var(--transition-timing-default);
   }
 
   /**
@@ -727,7 +751,8 @@ samp {
   }
 
   .animate-scale-in {
-    animation: scaleIn var(--transition-duration-normal) var(--transition-timing-default);
+    animation: scaleIn var(--transition-duration-normal)
+      var(--transition-timing-default);
   }
 
   /**
@@ -745,7 +770,8 @@ samp {
   }
 
   .animate-slide-in-right {
-    animation: slideInRight var(--transition-duration-slow) var(--transition-timing-default);
+    animation: slideInRight var(--transition-duration-slow)
+      var(--transition-timing-default);
   }
 
   /**
@@ -763,14 +789,16 @@ samp {
   }
 
   .animate-slide-in-left {
-    animation: slideInLeft var(--transition-duration-slow) var(--transition-timing-default);
+    animation: slideInLeft var(--transition-duration-slow)
+      var(--transition-timing-default);
   }
 
   /**
    * Pulse glow animation (for loading states)
    */
   @keyframes pulseGlow {
-    0%, 100% {
+    0%,
+    100% {
       opacity: 1;
     }
     50% {
@@ -835,7 +863,8 @@ samp {
    * Bounce animation
    */
   @keyframes bounce {
-    0%, 100% {
+    0%,
+    100% {
       transform: translateY(0);
     }
     50% {
@@ -866,7 +895,8 @@ samp {
     font-weight: var(--font-weight-medium);
     line-height: var(--line-height-tight);
     border-radius: var(--radius-md);
-    transition: all var(--transition-duration-fast) var(--transition-timing-default);
+    transition: all var(--transition-duration-fast)
+      var(--transition-timing-default);
     cursor: pointer;
     user-select: none;
     white-space: nowrap;
@@ -952,8 +982,11 @@ samp {
     background-color: var(--color-bg-primary);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--radius-md);
-    transition: border-color var(--transition-duration-fast) var(--transition-timing-default),
-                box-shadow var(--transition-duration-fast) var(--transition-timing-default);
+    transition:
+      border-color var(--transition-duration-fast)
+        var(--transition-timing-default),
+      box-shadow var(--transition-duration-fast)
+        var(--transition-timing-default);
   }
 
   .input::placeholder {
@@ -997,8 +1030,10 @@ samp {
   }
 
   .card-hover {
-    transition: box-shadow var(--transition-duration-fast) var(--transition-timing-default),
-                transform var(--transition-duration-fast) var(--transition-timing-default);
+    transition:
+      box-shadow var(--transition-duration-fast)
+        var(--transition-timing-default),
+      transform var(--transition-duration-fast) var(--transition-timing-default);
   }
 
   .card-hover:hover {
@@ -1181,7 +1216,8 @@ samp {
   .progress-bar {
     height: 100%;
     border-radius: var(--radius-full);
-    transition: width var(--transition-duration-slow) var(--transition-timing-default);
+    transition: width var(--transition-duration-slow)
+      var(--transition-timing-default);
   }
 
   .progress-bar-primary {
@@ -1221,8 +1257,10 @@ samp {
     border-radius: var(--radius-md);
     opacity: 0;
     visibility: hidden;
-    transition: opacity var(--transition-duration-fast) var(--transition-timing-default),
-                visibility var(--transition-duration-fast) var(--transition-timing-default);
+    transition:
+      opacity var(--transition-duration-fast) var(--transition-timing-default),
+      visibility var(--transition-duration-fast)
+        var(--transition-timing-default);
     z-index: var(--z-index-tooltip);
   }
 
@@ -1373,7 +1411,8 @@ samp {
     font-size: var(--font-size-sm);
     color: var(--color-text-primary);
     cursor: pointer;
-    transition: background-color var(--transition-duration-fast) var(--transition-timing-default);
+    transition: background-color var(--transition-duration-fast)
+      var(--transition-timing-default);
   }
 
   .dropdown-item:hover {
@@ -1489,8 +1528,11 @@ samp {
     border-radius: var(--radius-lg);
     background-color: var(--color-bg-secondary);
     cursor: pointer;
-    transition: border-color var(--transition-duration-fast) var(--transition-timing-default),
-                background-color var(--transition-duration-fast) var(--transition-timing-default);
+    transition:
+      border-color var(--transition-duration-fast)
+        var(--transition-timing-default),
+      background-color var(--transition-duration-fast)
+        var(--transition-timing-default);
   }
 
   .drop-zone:hover {
