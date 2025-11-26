@@ -17,7 +17,7 @@ All settings support environment variable overrides and .env file loading with
 comprehensive validation and type safety.
 """
 
-from typing import List, Optional
+from functools import lru_cache
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,11 +26,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """
     Comprehensive configuration settings for META-STAMP V3 platform.
-    
+
     This class uses Pydantic Settings to load configuration from environment
     variables and .env files with full type validation. Required fields
     (marked with `...`) must be provided via environment variables.
-    
+
     Configuration Categories:
     - Application: Core app settings like name, environment, debug mode
     - MongoDB: Database connection URI and connection pool settings
@@ -41,275 +41,236 @@ class Settings(BaseSettings):
     - Upload: File size limits and allowed extensions
     - Fingerprinting: Processing settings for asset fingerprinting
     - AI Touch Value: Calculation parameters for creator compensation
-    
+
     Example usage:
         ```python
         from app.config import Settings
-        
+
         settings = Settings()
         print(f"Connecting to MongoDB at: {settings.mongodb_uri}")
         print(f"Auth0 enabled: {settings.is_auth0_enabled}")
         ```
     """
-    
+
     # =========================================================================
     # Application Settings
     # =========================================================================
-    
+
     app_name: str = Field(
         default="META-STAMP-V3",
-        description="Application name displayed in API documentation and logs"
+        description="Application name displayed in API documentation and logs",
     )
-    
+
     app_env: str = Field(
         default="development",
-        description="Application environment (development, staging, production)"
+        description="Application environment (development, staging, production)",
     )
-    
+
     debug: bool = Field(
-        default=True,
-        description="Enable debug mode with hot-reload and verbose logging"
+        default=True, description="Enable debug mode with hot-reload and verbose logging"
     )
-    
+
     log_level: str = Field(
-        default="info",
-        description="Logging level (debug, info, warning, error, critical)"
+        default="info", description="Logging level (debug, info, warning, error, critical)"
     )
-    
+
     secret_key: str = Field(
         ...,
         description="Secret key for JWT signing and encryption. Must be a secure random string.",
-        min_length=32
+        min_length=32,
     )
-    
-    host: str = Field(
-        default="0.0.0.0",
-        description="Host address for the API server to bind to"
-    )
-    
-    port: int = Field(
-        default=8000,
-        description="Port number for the API server",
-        ge=1,
-        le=65535
-    )
-    
-    cors_origins: List[str] = Field(
+
+    host: str = Field(default="0.0.0.0", description="Host address for the API server to bind to")
+
+    port: int = Field(default=8000, description="Port number for the API server", ge=1, le=65535)
+
+    cors_origins: list[str] = Field(
         default=["http://localhost:3000"],
-        description="List of allowed CORS origins for frontend access"
+        description="List of allowed CORS origins for frontend access",
     )
-    
+
     # =========================================================================
     # MongoDB Configuration
     # =========================================================================
-    
+
     mongodb_uri: str = Field(
-        ...,
-        description="MongoDB connection URI (e.g., mongodb://localhost:27017)"
+        ..., description="MongoDB connection URI (e.g., mongodb://localhost:27017)"
     )
-    
+
     mongodb_db_name: str = Field(
-        default="metastamp",
-        description="MongoDB database name for META-STAMP data storage"
+        default="metastamp", description="MongoDB database name for META-STAMP data storage"
     )
-    
+
     mongodb_min_pool_size: int = Field(
-        default=10,
-        description="Minimum number of connections in MongoDB connection pool",
-        ge=1
+        default=10, description="Minimum number of connections in MongoDB connection pool", ge=1
     )
-    
+
     mongodb_max_pool_size: int = Field(
-        default=100,
-        description="Maximum number of connections in MongoDB connection pool",
-        ge=10
+        default=100, description="Maximum number of connections in MongoDB connection pool", ge=10
     )
-    
+
     # =========================================================================
     # Redis Configuration
     # =========================================================================
-    
-    redis_url: str = Field(
-        ...,
-        description="Redis connection URL (e.g., redis://localhost:6379)"
-    )
-    
+
+    redis_url: str = Field(..., description="Redis connection URL (e.g., redis://localhost:6379)")
+
     redis_cache_ttl_seconds: int = Field(
-        default=300,
-        description="Default TTL for Redis cache entries in seconds (5 minutes)",
-        ge=1
+        default=300, description="Default TTL for Redis cache entries in seconds (5 minutes)", ge=1
     )
-    
+
     # =========================================================================
     # S3/MinIO Storage Configuration
     # =========================================================================
-    
-    s3_endpoint_url: Optional[str] = Field(
-        default=None,
-        description="S3-compatible endpoint URL for MinIO (None for AWS S3)"
+
+    s3_endpoint_url: str | None = Field(
+        default=None, description="S3-compatible endpoint URL for MinIO (None for AWS S3)"
     )
-    
-    s3_access_key_id: str = Field(
-        ...,
-        description="S3/MinIO access key ID for authentication"
-    )
-    
+
+    s3_access_key_id: str = Field(..., description="S3/MinIO access key ID for authentication")
+
     s3_secret_access_key: str = Field(
-        ...,
-        description="S3/MinIO secret access key for authentication"
+        ..., description="S3/MinIO secret access key for authentication"
     )
-    
+
     s3_bucket_name: str = Field(
-        default="metastamp-assets",
-        description="S3 bucket name for storing uploaded assets"
+        default="metastamp-assets", description="S3 bucket name for storing uploaded assets"
     )
-    
+
     s3_region: str = Field(
         default="us-east-1",
-        description="AWS region for S3 bucket (also used for MinIO compatibility)"
+        description="AWS region for S3 bucket (also used for MinIO compatibility)",
     )
-    
+
     presigned_url_expiration_seconds: int = Field(
         default=900,
         description="Expiration time for S3 presigned URLs in seconds (15 minutes)",
         ge=60,
-        le=3600
+        le=3600,
     )
-    
+
     # =========================================================================
     # Auth0 Configuration
     # =========================================================================
-    
-    auth0_domain: Optional[str] = Field(
-        default=None,
-        description="Auth0 tenant domain (e.g., your-tenant.auth0.com)"
+
+    auth0_domain: str | None = Field(
+        default=None, description="Auth0 tenant domain (e.g., your-tenant.auth0.com)"
     )
-    
-    auth0_api_audience: Optional[str] = Field(
-        default=None,
-        description="Auth0 API audience identifier for token validation"
+
+    auth0_api_audience: str | None = Field(
+        default=None, description="Auth0 API audience identifier for token validation"
     )
-    
-    auth0_client_id: Optional[str] = Field(
-        default=None,
-        description="Auth0 application client ID"
+
+    auth0_client_id: str | None = Field(default=None, description="Auth0 application client ID")
+
+    auth0_client_secret: str | None = Field(
+        default=None, description="Auth0 application client secret"
     )
-    
-    auth0_client_secret: Optional[str] = Field(
-        default=None,
-        description="Auth0 application client secret"
-    )
-    
+
     jwt_algorithm: str = Field(
-        default="HS256",
-        description="JWT signing algorithm (HS256 for local, RS256 for Auth0)"
+        default="HS256", description="JWT signing algorithm (HS256 for local, RS256 for Auth0)"
     )
-    
+
     jwt_expiration_hours: int = Field(
-        default=24,
-        description="JWT token expiration time in hours",
-        ge=1,
-        le=168
+        default=24, description="JWT token expiration time in hours", ge=1, le=168
     )
-    
+
     # =========================================================================
     # LangChain AI Providers Configuration
     # =========================================================================
-    
-    openai_api_key: Optional[str] = Field(
-        default=None,
-        description="OpenAI API key for GPT-4/5 model access"
+
+    openai_api_key: str | None = Field(
+        default=None, description="OpenAI API key for GPT-4/5 model access"
     )
-    
-    anthropic_api_key: Optional[str] = Field(
-        default=None,
-        description="Anthropic API key for Claude model access"
+
+    anthropic_api_key: str | None = Field(
+        default=None, description="Anthropic API key for Claude model access"
     )
-    
-    google_api_key: Optional[str] = Field(
-        default=None,
-        description="Google API key for Gemini model access"
+
+    google_api_key: str | None = Field(
+        default=None, description="Google API key for Gemini model access"
     )
-    
+
     default_ai_provider: str = Field(
-        default="openai",
-        description="Default AI provider (openai, anthropic, google)"
+        default="openai", description="Default AI provider (openai, anthropic, google)"
     )
-    
+
     default_ai_model: str = Field(
-        default="gpt-4",
-        description="Default AI model name for the selected provider"
+        default="gpt-4", description="Default AI model name for the selected provider"
     )
-    
+
     # =========================================================================
     # File Upload Settings
     # =========================================================================
-    
+
     max_upload_size_mb: int = Field(
         default=500,
         description="Maximum file upload size in megabytes (500MB hard limit)",
         ge=1,
-        le=500
+        le=500,
     )
-    
+
     direct_upload_threshold_mb: int = Field(
         default=10,
         description="File size threshold for direct upload vs presigned URL (10MB)",
         ge=1,
-        le=100
+        le=100,
     )
-    
-    allowed_file_extensions: List[str] = Field(
+
+    allowed_file_extensions: list[str] = Field(
         default=[
-            ".txt", ".md", ".pdf",
-            ".png", ".jpg", ".jpeg", ".webp",
-            ".mp3", ".wav", ".aac",
-            ".mp4", ".mov", ".avi"
+            ".txt",
+            ".md",
+            ".pdf",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".mp3",
+            ".wav",
+            ".aac",
+            ".mp4",
+            ".mov",
+            ".avi",
         ],
-        description="List of allowed file extensions for upload validation"
+        description="List of allowed file extensions for upload validation",
     )
-    
+
     # =========================================================================
     # Fingerprinting Settings
     # =========================================================================
-    
+
     enable_fingerprinting: bool = Field(
-        default=True,
-        description="Enable asset fingerprinting for uploaded content"
+        default=True, description="Enable asset fingerprinting for uploaded content"
     )
-    
+
     fingerprint_cache_ttl_seconds: int = Field(
-        default=3600,
-        description="TTL for cached fingerprint data in seconds (1 hour)",
-        ge=60
+        default=3600, description="TTL for cached fingerprint data in seconds (1 hour)", ge=60
     )
-    
+
     # =========================================================================
     # AI Touch Value™ Settings
     # =========================================================================
-    
+
     equity_factor: float = Field(
         default=0.25,
         description="Fixed equity factor (25%) for AI Touch Value™ calculation",
         ge=0.0,
-        le=1.0
+        le=1.0,
     )
-    
+
     # =========================================================================
     # Model Configuration
     # =========================================================================
-    
+
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
-    
+
     # =========================================================================
     # Validators
     # =========================================================================
-    
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
@@ -317,11 +278,9 @@ class Settings(BaseSettings):
         valid_levels = {"debug", "info", "warning", "error", "critical"}
         normalized = v.lower()
         if normalized not in valid_levels:
-            raise ValueError(
-                f"Invalid log_level '{v}'. Must be one of: {', '.join(valid_levels)}"
-            )
+            raise ValueError(f"Invalid log_level '{v}'. Must be one of: {', '.join(valid_levels)}")
         return normalized
-    
+
     @field_validator("app_env")
     @classmethod
     def validate_app_env(cls, v: str) -> str:
@@ -329,11 +288,9 @@ class Settings(BaseSettings):
         valid_envs = {"development", "staging", "production", "testing"}
         normalized = v.lower()
         if normalized not in valid_envs:
-            raise ValueError(
-                f"Invalid app_env '{v}'. Must be one of: {', '.join(valid_envs)}"
-            )
+            raise ValueError(f"Invalid app_env '{v}'. Must be one of: {', '.join(valid_envs)}")
         return normalized
-    
+
     @field_validator("default_ai_provider")
     @classmethod
     def validate_ai_provider(cls, v: str) -> str:
@@ -345,7 +302,7 @@ class Settings(BaseSettings):
                 f"Invalid default_ai_provider '{v}'. Must be one of: {', '.join(valid_providers)}"
             )
         return normalized
-    
+
     @field_validator("jwt_algorithm")
     @classmethod
     def validate_jwt_algorithm(cls, v: str) -> str:
@@ -356,7 +313,7 @@ class Settings(BaseSettings):
                 f"Invalid jwt_algorithm '{v}'. Must be one of: {', '.join(valid_algorithms)}"
             )
         return v.upper()
-    
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def validate_cors_origins(cls, v):
@@ -364,7 +321,7 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
-    
+
     @field_validator("allowed_file_extensions", mode="before")
     @classmethod
     def validate_allowed_extensions(cls, v):
@@ -373,79 +330,75 @@ class Settings(BaseSettings):
             extensions = [ext.strip() for ext in v.split(",") if ext.strip()]
             return [ext if ext.startswith(".") else f".{ext}" for ext in extensions]
         return v
-    
+
     # =========================================================================
     # Computed Properties
     # =========================================================================
-    
+
     @property
     def is_auth0_enabled(self) -> bool:
         """
         Check if Auth0 authentication is fully configured.
-        
+
         Returns True if all required Auth0 settings are provided:
         - auth0_domain
         - auth0_client_id
         - auth0_client_secret
-        
+
         When False, the application falls back to local JWT authentication
         using HS256 algorithm with the configured secret_key.
         """
-        return all([
-            self.auth0_domain,
-            self.auth0_client_id,
-            self.auth0_client_secret
-        ])
-    
+        return all([self.auth0_domain, self.auth0_client_id, self.auth0_client_secret])
+
     @property
     def max_upload_size_bytes(self) -> int:
         """
         Get maximum upload size in bytes.
-        
+
         Convenience property that converts max_upload_size_mb to bytes
         for use in file validation logic.
         """
         return self.max_upload_size_mb * 1024 * 1024
-    
+
     @property
     def direct_upload_threshold_bytes(self) -> int:
         """
         Get direct upload threshold in bytes.
-        
+
         Convenience property that converts direct_upload_threshold_mb to bytes
         for routing upload requests to direct upload vs presigned URL flow.
         """
         return self.direct_upload_threshold_mb * 1024 * 1024
-    
+
     @property
     def is_development(self) -> bool:
         """Check if running in development environment."""
         return self.app_env == "development"
-    
+
     @property
     def is_production(self) -> bool:
         """Check if running in production environment."""
         return self.app_env == "production"
-    
+
     @property
     def has_openai_configured(self) -> bool:
         """Check if OpenAI API key is configured."""
         return self.openai_api_key is not None and len(self.openai_api_key) > 0
-    
+
     @property
     def has_anthropic_configured(self) -> bool:
         """Check if Anthropic API key is configured."""
         return self.anthropic_api_key is not None and len(self.anthropic_api_key) > 0
-    
+
     @property
     def has_google_configured(self) -> bool:
         """Check if Google API key is configured."""
         return self.google_api_key is not None and len(self.google_api_key) > 0
-    
-    def get_available_ai_providers(self) -> List[str]:
+
+    def get_available_ai_providers(self) -> list[str]:
         """
         Get list of configured AI providers.
-        
+
         Returns a list of provider names that have API keys configured
         and are ready for use with LangChain.
         """
@@ -461,32 +414,28 @@ class Settings(BaseSettings):
         return providers
 
 
-# Singleton instance for easy import throughout the application
-# Usage: from app.config import settings
-# This instance is lazily created on first access
-_settings: Optional[Settings] = None
-
-
+@lru_cache
 def get_settings() -> Settings:
     """
     Get the global Settings instance.
-    
-    This function provides a singleton pattern for the Settings class,
-    ensuring that configuration is loaded only once and reused throughout
-    the application lifecycle.
-    
+
+    This function provides a singleton pattern for the Settings class using
+    lru_cache, ensuring that configuration is loaded only once and reused
+    throughout the application lifecycle.
+
+    The @lru_cache decorator ensures that the Settings object is created only
+    once on first call, and subsequent calls return the cached instance without
+    re-reading environment variables or .env files.
+
     Returns:
         Settings: The global configuration instance.
-        
+
     Example:
         ```python
         from app.config import get_settings
-        
+
         settings = get_settings()
         print(f"Running in {settings.app_env} mode")
         ```
     """
-    global _settings
-    if _settings is None:
-        _settings = Settings()
-    return _settings
+    return Settings()
