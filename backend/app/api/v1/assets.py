@@ -23,20 +23,19 @@ Security Features:
 """
 
 import logging
+
 from datetime import UTC, datetime
 from typing import Any
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
 from app.core.auth import get_current_user
 from app.core.database import get_db_client
-from app.models.asset import Asset, AssetResponse, FileType, UploadStatus
-from app.models.fingerprint import Fingerprint, ProcessingStatus
-from app.services.storage_service import StorageService, StorageOperationError
+from app.models.asset import AssetResponse, FileType, UploadStatus
+from app.services.storage_service import StorageOperationError, StorageService
 
 
 # Configure module logger
@@ -155,14 +154,17 @@ async def get_user_asset(
     assets_collection = db_client.get_assets_collection()
 
     # Query for the asset
-    asset = await assets_collection.find_one({"_id": ObjectId(asset_id)})
+    asset_doc = await assets_collection.find_one({"_id": ObjectId(asset_id)})
 
-    if asset is None:
+    if asset_doc is None:
         logger.warning(f"Asset not found: {asset_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Asset with ID '{asset_id}' not found",
         )
+
+    # Type assertion: at this point asset_doc is definitely a dict
+    asset: dict[str, Any] = dict(asset_doc)
 
     # Convert ObjectId to string for comparison
     asset_user_id = str(asset.get("user_id", ""))
@@ -182,6 +184,94 @@ async def get_user_asset(
     asset["_id"] = str(asset["_id"])
 
     return asset
+
+
+async def _delete_s3_object(
+    asset: dict[str, Any],
+    settings: Settings,
+    asset_id: str | None,
+) -> bool:
+    """
+    Delete S3 object for an asset.
+
+    Args:
+        asset: Asset document with s3_key and s3_bucket
+        settings: Application settings for storage configuration
+        asset_id: Asset ID for logging
+
+    Returns:
+        bool: True if deletion was successful or object doesn't exist
+    """
+    s3_key = asset.get("s3_key")
+    s3_bucket = asset.get("s3_bucket")
+
+    if not (s3_key and s3_bucket):
+        logger.warning(f"Asset {asset_id} has no S3 key or bucket, skipping S3 deletion")
+        return True  # Nothing to delete
+
+    try:
+        storage_service = StorageService(
+            bucket_name=s3_bucket,
+            endpoint_url=settings.s3_endpoint_url,
+            access_key=settings.s3_access_key_id,
+            secret_key=settings.s3_secret_access_key,
+            region_name=settings.s3_region,
+        )
+        file_exists = await storage_service.file_exists(s3_key, bucket_name=s3_bucket)
+
+        if file_exists:
+            await storage_service.delete_file(s3_key, bucket_name=s3_bucket)
+            logger.info(f"Deleted S3 object: {s3_bucket}/{s3_key}")
+        else:
+            logger.info(
+                f"S3 object not found (may have been previously deleted): {s3_bucket}/{s3_key}"
+            )
+        return True
+
+    except StorageOperationError:
+        logger.exception(f"Failed to delete S3 object {s3_bucket}/{s3_key}")
+        return False
+    except Exception:
+        logger.exception("Unexpected error deleting S3 object")
+        return False
+
+
+async def _delete_fingerprint_record(asset: dict[str, Any], asset_id: str | None) -> bool:
+    """
+    Delete fingerprint record for an asset.
+
+    Args:
+        asset: Asset document with fingerprint_id
+        asset_id: Asset ID for logging and fallback query
+
+    Returns:
+        bool: True if deletion was successful or fingerprint doesn't exist
+    """
+    fingerprint_id = asset.get("fingerprint_id")
+    if not fingerprint_id:
+        return True  # No fingerprint to delete
+
+    try:
+        db_client = get_db_client()
+        fingerprints_collection = db_client.get_fingerprints_collection()
+
+        # Try to delete by fingerprint_id or by asset_id
+        query: dict[str, Any] = (
+            {"_id": ObjectId(fingerprint_id)}
+            if ObjectId.is_valid(fingerprint_id)
+            else {"asset_id": str(asset_id)}
+        )
+        result = await fingerprints_collection.delete_one(query)
+
+        if result.deleted_count > 0:
+            logger.info(f"Deleted fingerprint record for asset: {asset_id}")
+        else:
+            logger.info(f"Fingerprint record not found for asset: {asset_id}")
+        return True
+
+    except Exception:
+        logger.exception(f"Error deleting fingerprint for asset {asset_id}")
+        return False
 
 
 async def delete_asset_cascade(
@@ -209,86 +299,16 @@ async def delete_asset_cascade(
     Raises:
         HTTPException: 500 if any critical deletion fails
     """
+    asset_id = asset.get("_id")
     deletion_status = {
-        "s3_deleted": False,
-        "fingerprint_deleted": False,
+        "s3_deleted": await _delete_s3_object(asset, settings, asset_id),
+        "fingerprint_deleted": await _delete_fingerprint_record(asset, asset_id),
         "asset_deleted": False,
     }
 
-    db_client = get_db_client()
-    asset_id = asset.get("_id")
-
-    # Step 1: Delete S3 object
-    s3_key = asset.get("s3_key")
-    s3_bucket = asset.get("s3_bucket")
-
-    if s3_key and s3_bucket:
-        try:
-            # Initialize storage service with current settings
-            storage_service = StorageService(
-                bucket_name=s3_bucket,
-                endpoint_url=settings.s3_endpoint_url,
-                access_key=settings.s3_access_key_id,
-                secret_key=settings.s3_secret_access_key,
-                region_name=settings.s3_region,
-            )
-
-            # Check if file exists before attempting deletion
-            file_exists = await storage_service.file_exists(s3_key, bucket_name=s3_bucket)
-
-            if file_exists:
-                await storage_service.delete_file(s3_key, bucket_name=s3_bucket)
-                logger.info(f"Deleted S3 object: {s3_bucket}/{s3_key}")
-                deletion_status["s3_deleted"] = True
-            else:
-                # File doesn't exist - may have been previously deleted
-                logger.info(
-                    f"S3 object not found (may have been previously deleted): {s3_bucket}/{s3_key}"
-                )
-                deletion_status["s3_deleted"] = True  # Consider success if already gone
-
-        except StorageOperationError as e:
-            logger.error(f"Failed to delete S3 object {s3_bucket}/{s3_key}: {e}")
-            # Continue with other deletions even if S3 fails
-            # The asset record will be marked for cleanup later
-        except Exception as e:
-            logger.exception(f"Unexpected error deleting S3 object: {e}")
-    else:
-        logger.warning(f"Asset {asset_id} has no S3 key or bucket, skipping S3 deletion")
-        deletion_status["s3_deleted"] = True  # Nothing to delete
-
-    # Step 2: Delete fingerprint record if exists
-    fingerprint_id = asset.get("fingerprint_id")
-    if fingerprint_id:
-        try:
-            fingerprints_collection = db_client.get_fingerprints_collection()
-
-            # Try to delete by fingerprint_id or by asset_id
-            if ObjectId.is_valid(fingerprint_id):
-                result = await fingerprints_collection.delete_one(
-                    {"_id": ObjectId(fingerprint_id)}
-                )
-            else:
-                # Try finding by asset_id instead
-                result = await fingerprints_collection.delete_one({"asset_id": str(asset_id)})
-
-            if result.deleted_count > 0:
-                logger.info(f"Deleted fingerprint record for asset: {asset_id}")
-                deletion_status["fingerprint_deleted"] = True
-            else:
-                # Fingerprint not found - may have been deleted separately
-                logger.info(f"Fingerprint record not found for asset: {asset_id}")
-                deletion_status["fingerprint_deleted"] = True
-
-        except Exception as e:
-            logger.exception(f"Error deleting fingerprint for asset {asset_id}: {e}")
-            # Continue with asset deletion even if fingerprint deletion fails
-    else:
-        # Asset has no fingerprint - nothing to delete
-        deletion_status["fingerprint_deleted"] = True
-
     # Step 3: Delete asset record from MongoDB
     try:
+        db_client = get_db_client()
         assets_collection = db_client.get_assets_collection()
         result = await assets_collection.delete_one({"_id": ObjectId(asset_id)})
 
@@ -305,7 +325,7 @@ async def delete_asset_cascade(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error deleting asset record {asset_id}: {e}")
+        logger.exception(f"Error deleting asset record {asset_id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete asset: {e!s}",
@@ -331,20 +351,27 @@ def convert_asset_to_response(asset_doc: dict[str, Any]) -> AssetResponse:
     file_size_mb = round(file_size / (1024 * 1024), 2)
 
     # Extract enum values (handle both string and enum types)
-    file_type = asset_doc.get("file_type")
-    if hasattr(file_type, "value"):
-        file_type = file_type.value
+    file_type_raw = asset_doc.get("file_type")
+    file_type: str | None = (
+        file_type_raw.value if isinstance(file_type_raw, FileType) else file_type_raw
+    )
 
-    upload_status = asset_doc.get("upload_status")
-    if hasattr(upload_status, "value"):
-        upload_status = upload_status.value
+    upload_status_raw = asset_doc.get("upload_status")
+    upload_status: str | None = (
+        upload_status_raw.value
+        if isinstance(upload_status_raw, UploadStatus)
+        else upload_status_raw
+    )
 
-    processing_status = asset_doc.get("processing_status")
-    if processing_status and hasattr(processing_status, "value"):
-        processing_status = processing_status.value
+    processing_status_raw = asset_doc.get("processing_status")
+    processing_status: str | None = (
+        processing_status_raw.value
+        if processing_status_raw and hasattr(processing_status_raw, "value")
+        else processing_status_raw
+    )
 
     # Determine ready status
-    is_ready = upload_status == "ready" or upload_status == UploadStatus.READY
+    is_ready = upload_status in {"ready", UploadStatus.READY}
 
     # Determine fingerprint status
     has_fingerprint = asset_doc.get("fingerprint_id") is not None
@@ -510,7 +537,7 @@ async def list_assets(
             detail="Database service unavailable",
         ) from e
     except Exception as e:
-        logger.exception(f"Error listing assets for user {user_id}: {e}")
+        logger.exception(f"Error listing assets for user {user_id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve assets",
@@ -625,14 +652,13 @@ async def get_asset(
 
     # Calculate days since upload
     created_at = asset.get("created_at")
-    if created_at:
-        if isinstance(created_at, datetime):
-            now = datetime.now(UTC)
-            # Ensure both datetimes are timezone-aware
-            if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=UTC)
-            delta = now - created_at
-            additional_metadata["days_since_upload"] = delta.days
+    if created_at and isinstance(created_at, datetime):
+        now = datetime.now(UTC)
+        # Ensure both datetimes are timezone-aware
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        delta = now - created_at
+        additional_metadata["days_since_upload"] = delta.days
 
     logger.info(f"Returning asset details for {asset_id}")
 

@@ -30,15 +30,17 @@ License: Proprietary
 
 import json
 import logging
+
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any, AsyncIterator
+from typing import Any
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 
 from app.config import Settings, get_settings
-from app.core.redis_client import get_redis_client
+from app.core.redis_client import RedisClient, get_redis_client
 from app.services.ai_value_service import AIValueService
 from app.services.fingerprinting_service import FingerprintingService
 
@@ -142,9 +144,11 @@ async def lookup_fingerprint(asset_id: str) -> dict[str, Any]:
             "asset_id": fingerprint_doc.get("asset_id", asset_id),
             "fingerprint_type": fingerprint_doc.get("fingerprint_type", "unknown"),
             "processing_status": fingerprint_doc.get("processing_status", "unknown"),
-            "created_at": fingerprint_doc.get("created_at", "").isoformat()
-            if fingerprint_doc.get("created_at")
-            else None,
+            "created_at": (
+                fingerprint_doc.get("created_at", "").isoformat()
+                if fingerprint_doc.get("created_at")
+                else None
+            ),
             "status": "found",
         }
 
@@ -405,7 +409,7 @@ class AIAssistantService:
             f"default_model={default_model}"
         )
 
-    def _get_redis_client(self):
+    def _get_redis_client(self) -> RedisClient | None:
         """Get Redis client with error handling."""
         redis_client = get_redis_client()
         if redis_client is None:
@@ -562,7 +566,9 @@ class AIAssistantService:
             success = await redis_client.set_json(redis_key, messages, ttl=CONVERSATION_TTL_SECONDS)
 
             if success:
-                self.logger.debug(f"Context saved successfully with {CONVERSATION_TTL_SECONDS}s TTL")
+                self.logger.debug(
+                    f"Context saved successfully with {CONVERSATION_TTL_SECONDS}s TTL"
+                )
             else:
                 self.logger.warning(f"Failed to save context to Redis for {redis_key}")
 
@@ -641,9 +647,7 @@ to specific calculation formulas when discussing compensation."""
 
         return base_context + personality_context
 
-    def _convert_messages_to_langchain(
-        self, messages: list[dict[str, Any]]
-    ) -> list[BaseMessage]:
+    def _convert_messages_to_langchain(self, messages: list[dict[str, Any]]) -> list[BaseMessage]:
         """
         Convert stored message dictionaries to LangChain message objects.
 
@@ -692,11 +696,15 @@ to specific calculation formulas when discussing compensation."""
         results: list[dict[str, Any]] = []
 
         for tool_call in tool_calls:
-            tool_name = tool_call.get("name", "") if isinstance(tool_call, dict) else getattr(
-                tool_call, "name", ""
+            tool_name = (
+                tool_call.get("name", "")
+                if isinstance(tool_call, dict)
+                else getattr(tool_call, "name", "")
             )
             tool_call_id = (
-                tool_call.get("id", "") if isinstance(tool_call, dict) else getattr(tool_call, "id", "")
+                tool_call.get("id", "")
+                if isinstance(tool_call, dict)
+                else getattr(tool_call, "id", "")
             )
             tool_args = (
                 tool_call.get("args", {})
@@ -715,21 +723,25 @@ to specific calculation formulas when discussing compensation."""
                     result = {"error": f"Unknown tool: {tool_name}"}
                     self.logger.warning(f"Unknown tool requested: {tool_name}")
 
-                results.append({
-                    "tool_call_id": tool_call_id,
-                    "role": "tool",
-                    "content": json.dumps(result),
-                })
+                results.append(
+                    {
+                        "tool_call_id": tool_call_id,
+                        "role": "tool",
+                        "content": json.dumps(result),
+                    }
+                )
 
                 self.logger.info(f"Tool {tool_name} executed successfully")
 
             except Exception as e:
                 self.logger.exception(f"Error executing tool {tool_name}: {e}")
-                results.append({
-                    "tool_call_id": tool_call_id,
-                    "role": "tool",
-                    "content": json.dumps({"error": str(e), "tool": tool_name}),
-                })
+                results.append(
+                    {
+                        "tool_call_id": tool_call_id,
+                        "role": "tool",
+                        "content": json.dumps({"error": str(e), "tool": tool_name}),
+                    }
+                )
 
         return results
 
@@ -832,9 +844,15 @@ to specific calculation formulas when discussing compensation."""
                     break
 
             # Update conversation context
-            context.append({"role": "user", "content": message, "timestamp": datetime.now(UTC).isoformat()})
             context.append(
-                {"role": "assistant", "content": full_response, "timestamp": datetime.now(UTC).isoformat()}
+                {"role": "user", "content": message, "timestamp": datetime.now(UTC).isoformat()}
+            )
+            context.append(
+                {
+                    "role": "assistant",
+                    "content": full_response,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
             )
 
             # Save updated context
@@ -927,7 +945,9 @@ to specific calculation formulas when discussing compensation."""
                 if hasattr(response, "tool_calls") and response.tool_calls:
                     # Record which tools were called
                     for tc in response.tool_calls:
-                        tool_name = tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", "")
+                        tool_name = (
+                            tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", "")
+                        )
                         tools_called.append(tool_name)
 
                     # Handle tool calls
@@ -958,7 +978,11 @@ to specific calculation formulas when discussing compensation."""
             timestamp = datetime.now(UTC)
             context.append({"role": "user", "content": message, "timestamp": timestamp.isoformat()})
             context.append(
-                {"role": "assistant", "content": response_content, "timestamp": timestamp.isoformat()}
+                {
+                    "role": "assistant",
+                    "content": response_content,
+                    "timestamp": timestamp.isoformat(),
+                }
             )
 
             # Save updated context
@@ -1084,8 +1108,7 @@ to specific calculation formulas when discussing compensation."""
             available = [p for p in ["openai", "anthropic", "google"] if self.api_keys.get(p)]
             available.append("local")  # Local is always available
             raise ProviderInitializationError(
-                f"Provider '{new_provider}' is not configured. "
-                f"Available providers: {available}"
+                f"Provider '{new_provider}' is not configured. " f"Available providers: {available}"
             )
 
         # Test initialization (will raise if invalid)
@@ -1157,12 +1180,12 @@ def create_ai_assistant_service(
 
 # Export all public classes and functions
 __all__ = [
-    "AIAssistantService",
     "AIAssistantError",
-    "ProviderInitializationError",
-    "ToolExecutionError",
+    "AIAssistantService",
     "ConversationContextError",
+    "ProviderInitializationError",
     "StreamingError",
+    "ToolExecutionError",
     "create_ai_assistant_service",
     "lookup_fingerprint",
     "query_analytics",

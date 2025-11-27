@@ -17,6 +17,7 @@ Based on Agent Action Plan sections 0.4 (Backend Architecture Implementation),
 
 import logging
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
@@ -47,7 +48,7 @@ settings = Settings()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):  # noqa: ARG001
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # noqa: ARG001
     """
     Manage application lifecycle events.
 
@@ -228,7 +229,7 @@ async def readiness_check() -> JSONResponse:
 
     # Check Redis connection
     try:
-        redis = await get_redis_client()
+        redis = get_redis_client()
         if redis is not None:
             await redis.ping()
             components["redis"] = {"status": "healthy"}

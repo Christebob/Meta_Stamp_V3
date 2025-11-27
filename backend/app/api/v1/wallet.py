@@ -216,7 +216,8 @@ async def get_or_create_wallet(user_id: str) -> dict[str, Any]:
 
         if wallet is not None:
             logger.debug("Found existing wallet for user: %s", user_id)
-            return wallet
+            wallet_data: dict[str, Any] = dict(wallet) if wallet else {}
+            return wallet_data
 
         # Create new default wallet for user
         logger.info("Creating new wallet for user: %s", user_id)
@@ -283,7 +284,7 @@ async def calculate_pending_earnings(user_id: str) -> Decimal:
 
         # Aggregate pending AI Touch Value™ calculations
         # Status "pending" indicates not yet converted to wallet balance
-        pipeline = [
+        pipeline: list[dict[str, Any]] = [
             {
                 "$match": {
                     "user_id": user_id,
@@ -332,7 +333,7 @@ async def calculate_pending_earnings(user_id: str) -> Decimal:
         ) from e
 
 
-async def get_transactions_collection():
+async def get_transactions_collection() -> Any:
     """
     Get the transactions collection from MongoDB.
 

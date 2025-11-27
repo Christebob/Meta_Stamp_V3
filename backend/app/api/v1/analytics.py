@@ -309,8 +309,8 @@ class PredictResponse(BaseModel):
         description="MongoDB ObjectId of stored calculation record",
         json_schema_extra={"example": "507f1f77bcf86cd799439011"},
     )
-    timestamp: str = Field(
-        ...,
+    timestamp: str | None = Field(
+        default=None,
         description="ISO format UTC timestamp of calculation",
         json_schema_extra={"example": "2025-01-15T10:30:00+00:00"},
     )

@@ -524,7 +524,8 @@ class URLProcessorService:
         # Try og:title meta tag first
         og_title = soup.find("meta", property="og:title")
         if og_title and og_title.get("content"):
-            return og_title["content"]
+            content = og_title["content"]
+            return str(content) if content else None
 
         # Fallback to <title> tag
         title_tag = soup.find("title")
@@ -550,12 +551,14 @@ class URLProcessorService:
         # Try og:description meta tag first
         og_description = soup.find("meta", property="og:description")
         if og_description and og_description.get("content"):
-            return og_description["content"]
+            content = og_description["content"]
+            return str(content) if content else None
 
         # Fallback to meta description
         meta_description = soup.find("meta", attrs={"name": "description"})
         if meta_description and meta_description.get("content"):
-            return meta_description["content"]
+            content = meta_description["content"]
+            return str(content) if content else None
 
         return None
 

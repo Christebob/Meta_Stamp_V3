@@ -232,10 +232,11 @@ class Auth0TokenValidator:
 
             # Fetch JWKS and find matching key
             jwks = self._fetch_jwks()
-            for key in jwks.get("keys", []):
+            keys_list: list[dict[str, Any]] = jwks.get("keys", [])
+            for key in keys_list:
                 if key.get("kid") == kid:
                     logger.debug("Found matching public key for kid: %s", kid)
-                    return key
+                    return dict(key)
 
             logger.warning("No matching key found for kid: %s", kid)
             raise HTTPException(
@@ -289,7 +290,8 @@ class Auth0TokenValidator:
                 "Auth0 token validated successfully for subject: %s",
                 payload.get("sub", "unknown"),
             )
-            return payload
+            result: dict[str, Any] = dict(payload) if payload else {}
+            return result
 
         except jwt.ExpiredSignatureError as e:
             logger.warning("Auth0 token has expired")
@@ -364,14 +366,16 @@ def create_local_jwt(user_id: str, email: str, settings: Settings) -> str:
         "type": "local",
     }
 
-    token = jwt.encode(
+    encoded_token = jwt.encode(
         payload,
         settings.secret_key,
         algorithm="HS256",
     )
+    # jwt.encode returns str in python-jose, ensure it's a string
+    token_str: str = str(encoded_token) if not isinstance(encoded_token, str) else encoded_token
 
     logger.info("Created local JWT for user: %s (expires: %s)", user_id, expire.isoformat())
-    return token
+    return token_str
 
 
 def validate_local_jwt(token: str, settings: Settings) -> dict[str, Any]:
@@ -397,7 +401,8 @@ def validate_local_jwt(token: str, settings: Settings) -> dict[str, Any]:
             algorithms=["HS256"],
         )
         logger.debug("Local JWT validated for subject: %s", payload.get("sub", "unknown"))
-        return payload
+        result: dict[str, Any] = dict(payload) if payload else {}
+        return result
     except jwt.ExpiredSignatureError:
         logger.warning("Local JWT has expired")
         raise
@@ -498,7 +503,9 @@ def decode_token_without_verification(token: str) -> dict[str, Any]:
             header_b64 += "=" * padding
 
         header_bytes = base64url_decode(header_b64.encode("utf-8"))
-        return json.loads(header_bytes.decode("utf-8"))
+        header_data = json.loads(header_bytes.decode("utf-8"))
+        result: dict[str, Any] = dict(header_data) if isinstance(header_data, dict) else {}
+        return result
 
     except Exception as e:
         logger.warning("Failed to decode token header: %s", str(e))
@@ -621,7 +628,8 @@ async def get_current_user(
             cached_user = await redis_client.get_json(cache_key)
             if cached_user:
                 logger.debug("User found in cache: %s", user_id)
-                return cached_user
+                user_data: dict[str, Any] = dict(cached_user) if cached_user else {}
+                return user_data
         except Exception as e:
             logger.warning("Redis cache lookup failed: %s", str(e))
 
@@ -664,7 +672,8 @@ async def get_current_user(
                 logger.warning("Failed to cache user in Redis: %s", str(e))
 
         logger.info("User authenticated: %s", user.get("email", user_id))
-        return user
+        user_result: dict[str, Any] = dict(user) if user else {}
+        return user_result
 
     except HTTPException:
         raise
@@ -734,7 +743,8 @@ async def get_current_user_optional(
             try:
                 cached_user = await redis_client.get_json(cache_key)
                 if cached_user:
-                    return cached_user
+                    cached_data: dict[str, Any] = dict(cached_user) if cached_user else {}
+                    return cached_data
             except Exception:
                 pass
 
@@ -755,7 +765,8 @@ async def get_current_user_optional(
             if redis_client:
                 with contextlib.suppress(Exception):
                     await redis_client.set_json(cache_key, user, ttl=USER_CACHE_TTL)
-            return user
+            user_data: dict[str, Any] = dict(user) if user else {}
+            return user_data
 
         return None
 
@@ -975,7 +986,8 @@ async def authenticate_user(email: str, password: str) -> dict[str, Any] | None:
         # Convert ObjectId to string for return
         user["_id"] = str(user["_id"])
         logger.info("User authenticated successfully: %s", email)
-        return user
+        user_result: dict[str, Any] = dict(user) if user else {}
+        return user_result
 
     except RuntimeError:
         logger.exception("Database error during authentication")

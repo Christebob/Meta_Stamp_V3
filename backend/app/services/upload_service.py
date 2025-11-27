@@ -351,7 +351,7 @@ class UploadService:
         try:
             download_success = await self.storage.download_file(
                 object_key=object_key,
-                destination_path=str(temp_file_path),
+                file_path=str(temp_file_path),
             )
 
             if download_success:
@@ -525,7 +525,7 @@ class UploadService:
 
             # Create Asset record in MongoDB
             asset = Asset(
-                id=str(uuid.uuid4()),
+                _id=str(uuid.uuid4()),
                 user_id=user_id,
                 file_name=filename,
                 file_type=file_type,
@@ -667,7 +667,7 @@ class UploadService:
             presigned_url = await self.storage.generate_presigned_upload_url(
                 object_key=object_key,
                 content_type=content_type,
-                expires_in=expires_in,
+                expiration=expires_in,
             )
 
             if not presigned_url:
@@ -686,7 +686,7 @@ class UploadService:
             # Create Asset record with queued status (pending presigned upload)
             asset_id = str(uuid.uuid4())
             asset = Asset(
-                id=asset_id,
+                _id=asset_id,
                 user_id=user_id,
                 file_name=filename,
                 file_type=file_type,
@@ -1040,7 +1040,7 @@ class UploadService:
 
             # Create Asset record in MongoDB
             asset = Asset(
-                id=str(uuid.uuid4()),
+                _id=str(uuid.uuid4()),
                 user_id=user_id,
                 file_name=filename,
                 file_type=FileType.TEXT,
@@ -1250,7 +1250,7 @@ class UploadService:
 
             # Create Asset record in MongoDB
             asset = Asset(
-                id=str(uuid.uuid4()),
+                _id=str(uuid.uuid4()),
                 user_id=user_id,
                 file_name=filename,
                 file_type=FileType.URL,

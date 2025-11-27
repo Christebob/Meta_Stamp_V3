@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     )
 
     secret_key: str = Field(
-        ...,
+        default="development-secret-key-change-in-production-32chars",
         description="Secret key for JWT signing and encryption. Must be a secure random string.",
         min_length=32,
     )
@@ -94,7 +94,8 @@ class Settings(BaseSettings):
     # =========================================================================
 
     mongodb_uri: str = Field(
-        ..., description="MongoDB connection URI (e.g., mongodb://localhost:27017)"
+        default="mongodb://localhost:27017",
+        description="MongoDB connection URI (e.g., mongodb://localhost:27017)",
     )
 
     mongodb_db_name: str = Field(
@@ -113,7 +114,10 @@ class Settings(BaseSettings):
     # Redis Configuration
     # =========================================================================
 
-    redis_url: str = Field(..., description="Redis connection URL (e.g., redis://localhost:6379)")
+    redis_url: str = Field(
+        default="redis://localhost:6379",
+        description="Redis connection URL (e.g., redis://localhost:6379)",
+    )
 
     redis_cache_ttl_seconds: int = Field(
         default=300, description="Default TTL for Redis cache entries in seconds (5 minutes)", ge=1
@@ -127,10 +131,14 @@ class Settings(BaseSettings):
         default=None, description="S3-compatible endpoint URL for MinIO (None for AWS S3)"
     )
 
-    s3_access_key_id: str = Field(..., description="S3/MinIO access key ID for authentication")
+    s3_access_key_id: str = Field(
+        default="minioadmin",
+        description="S3/MinIO access key ID for authentication",
+    )
 
     s3_secret_access_key: str = Field(
-        ..., description="S3/MinIO secret access key for authentication"
+        default="minioadmin",
+        description="S3/MinIO secret access key for authentication",
     )
 
     s3_bucket_name: str = Field(
@@ -438,5 +446,5 @@ def get_settings() -> Settings:
         print(f"Running in {settings.app_env} mode")
         ```
     """
-    # Required fields are loaded from environment variables via pydantic-settings
-    return Settings()  # type: ignore[call-arg]
+    # Configuration is loaded from environment variables via pydantic-settings
+    return Settings()
