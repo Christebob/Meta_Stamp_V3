@@ -16,7 +16,6 @@ requirements for async Motor driver usage.
 
 import asyncio
 import logging
-from typing import Optional
 
 from motor.motor_asyncio import (
     AsyncIOMotorClient,
@@ -26,6 +25,7 @@ from motor.motor_asyncio import (
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
 from app.config import Settings
+
 
 # Configure module logger for structured logging
 logger = logging.getLogger(__name__)
@@ -84,8 +84,8 @@ class DatabaseClient:
         self._db_name = settings.mongodb_db_name
         self._min_pool_size = settings.mongodb_min_pool_size
         self._max_pool_size = settings.mongodb_max_pool_size
-        self._client: Optional[AsyncIOMotorClient] = None
-        self._database: Optional[AsyncIOMotorDatabase] = None
+        self._client: AsyncIOMotorClient | None = None
+        self._database: AsyncIOMotorDatabase | None = None
 
         logger.info(
             f"DatabaseClient initialized with pool size {self._min_pool_size}-{self._max_pool_size} "
@@ -140,27 +140,27 @@ class DatabaseClient:
                 )
                 return True
 
-            except ServerSelectionTimeoutError as e:
-                logger.error(
-                    f"MongoDB server selection timeout (attempt {attempt}/{max_retries}): {e}"
+            except ServerSelectionTimeoutError:
+                logger.exception(
+                    f"MongoDB server selection timeout (attempt {attempt}/{max_retries})"
                 )
                 if attempt < max_retries:
                     logger.warning(f"Retrying in {retry_delay} seconds...")
                     await asyncio.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
 
-            except ConnectionFailure as e:
-                logger.error(
-                    f"MongoDB connection failure (attempt {attempt}/{max_retries}): {e}"
+            except ConnectionFailure:
+                logger.exception(
+                    f"MongoDB connection failure (attempt {attempt}/{max_retries})"
                 )
                 if attempt < max_retries:
                     logger.warning(f"Retrying in {retry_delay} seconds...")
                     await asyncio.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
 
-            except Exception as e:
-                logger.error(
-                    f"Unexpected error connecting to MongoDB (attempt {attempt}/{max_retries}): {e}"
+            except Exception:
+                logger.exception(
+                    f"Unexpected error connecting to MongoDB (attempt {attempt}/{max_retries})"
                 )
                 if attempt < max_retries:
                     logger.warning(f"Retrying in {retry_delay} seconds...")
@@ -184,8 +184,8 @@ class DatabaseClient:
             try:
                 self._client.close()
                 logger.info(f"MongoDB connection closed for database: {self._db_name}")
-            except Exception as e:
-                logger.error(f"Error closing MongoDB connection: {e}")
+            except Exception:
+                logger.exception("Error closing MongoDB connection")
             finally:
                 self._client = None
                 self._database = None
@@ -209,14 +209,14 @@ class DatabaseClient:
         try:
             await self._client.admin.command("ping")
             return True
-        except ConnectionFailure as e:
-            logger.error(f"MongoDB ping failed with connection error: {e}")
+        except ConnectionFailure:
+            logger.exception("MongoDB ping failed with connection error")
             return False
-        except ServerSelectionTimeoutError as e:
-            logger.error(f"MongoDB ping failed with timeout: {e}")
+        except ServerSelectionTimeoutError:
+            logger.exception("MongoDB ping failed with timeout")
             return False
-        except Exception as e:
-            logger.error(f"MongoDB ping failed with unexpected error: {e}")
+        except Exception:
+            logger.exception("MongoDB ping failed with unexpected error")
             return False
 
     def get_database(self) -> AsyncIOMotorDatabase:
@@ -408,16 +408,16 @@ class DatabaseClient:
 
             logger.info("All MongoDB indexes created successfully")
 
-        except Exception as e:
-            logger.error(f"Error creating MongoDB indexes: {e}")
+        except Exception:
+            logger.exception("Error creating MongoDB indexes")
             raise
 
 
 # Global singleton instance for database client
-_db_client: Optional[DatabaseClient] = None
+_db_client: DatabaseClient | None = None
 
 
-async def init_db(settings: Optional[Settings] = None) -> DatabaseClient:
+async def init_db(settings: Settings | None = None) -> DatabaseClient:
     """
     Initialize the global database client singleton.
 
