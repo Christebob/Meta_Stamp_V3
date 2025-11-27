@@ -34,8 +34,9 @@ import json
 import logging
 import uuid
 
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any, AsyncIterator, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -127,20 +128,20 @@ class AskRequest(BaseModel):
         json_schema_extra={"example": "What is my AI Touch Value for asset X?"},
     )
 
-    conversation_id: Optional[str] = Field(
+    conversation_id: str | None = Field(
         default=None,
         max_length=100,
         description="Optional conversation ID for context continuity",
         json_schema_extra={"example": "conv_abc123def456"},
     )
 
-    provider: Optional[str] = Field(
+    provider: str | None = Field(
         default=None,
         description="AI provider: openai, anthropic, google, or local",
         json_schema_extra={"example": "openai"},
     )
 
-    personality: Optional[str] = Field(
+    personality: str | None = Field(
         default="friendly",
         description="Personality mode: friendly (general help) or legal (advisory)",
         json_schema_extra={"example": "friendly"},
@@ -173,7 +174,7 @@ class ToolCallInfo(BaseModel):
 
     name: str = Field(..., description="Tool function name")
     args: dict[str, Any] = Field(default_factory=dict, description="Tool arguments")
-    result: Optional[dict[str, Any]] = Field(default=None, description="Tool result")
+    result: dict[str, Any] | None = Field(default=None, description="Tool result")
 
 
 class MessageResponse(BaseModel):
@@ -199,7 +200,7 @@ class MessageResponse(BaseModel):
         default_factory=lambda: datetime.now(UTC),
         description="Response generation timestamp (UTC)",
     )
-    tool_calls: Optional[list[ToolCallInfo]] = Field(
+    tool_calls: list[ToolCallInfo] | None = Field(
         default=None, description="Tool calls made during response generation"
     )
     conversation_id: str = Field(..., description="Conversation ID for continuity")
@@ -248,12 +249,12 @@ class StreamChunk(BaseModel):
     """
 
     type: str = Field(..., description="Chunk type: token, tool_call, tool_result, done, error")
-    content: Optional[str] = Field(default=None, description="Content for token chunks")
-    name: Optional[str] = Field(default=None, description="Tool name for tool_call chunks")
-    args: Optional[dict[str, Any]] = Field(default=None, description="Tool arguments")
-    result: Optional[dict[str, Any]] = Field(default=None, description="Tool result")
-    message_id: Optional[str] = Field(default=None, description="Message ID for done chunk")
-    error: Optional[str] = Field(default=None, description="Error message for error chunks")
+    content: str | None = Field(default=None, description="Content for token chunks")
+    name: str | None = Field(default=None, description="Tool name for tool_call chunks")
+    args: dict[str, Any] | None = Field(default=None, description="Tool arguments")
+    result: dict[str, Any] | None = Field(default=None, description="Tool result")
+    message_id: str | None = Field(default=None, description="Message ID for done chunk")
+    error: str | None = Field(default=None, description="Error message for error chunks")
 
 
 # =============================================================================
@@ -261,7 +262,7 @@ class StreamChunk(BaseModel):
 # =============================================================================
 
 
-def _validate_provider(provider: Optional[str]) -> str:
+def _validate_provider(provider: str | None) -> str:
     """
     Validate and normalize the AI provider selection.
 
@@ -292,7 +293,7 @@ def _validate_provider(provider: Optional[str]) -> str:
     return provider_lower
 
 
-def _validate_personality(personality: Optional[str]) -> str:
+def _validate_personality(personality: str | None) -> str:
     """
     Validate and normalize the personality mode selection.
 
@@ -337,7 +338,7 @@ def _format_sse_event(data: dict[str, Any]) -> str:
     return f"{SSE_DATA_PREFIX}{json_data}{SSE_EVENT_SUFFIX}"
 
 
-def _get_or_create_conversation_id(request_conversation_id: Optional[str]) -> str:
+def _get_or_create_conversation_id(request_conversation_id: str | None) -> str:
     """
     Get existing conversation ID or generate a new one.
 
@@ -465,26 +466,26 @@ async def stream_assistant_response(
         logger.info("Streaming completed: message_id=%s", message_id)
 
     except ProviderInitializationError as e:
-        logger.error("Provider initialization failed: %s", str(e))
+        logger.exception("Provider initialization failed")
         yield _format_sse_event(
             {
                 "type": "error",
-                "error": f"Provider initialization failed: {str(e)}",
+                "error": f"Provider initialization failed: {e!s}",
                 "code": "provider_error",
             }
         )
 
     except StreamingError as e:
-        logger.error("Streaming error: %s", str(e))
+        logger.exception("Streaming error")
         yield _format_sse_event(
             {
                 "type": "error",
-                "error": f"Streaming error: {str(e)}",
+                "error": f"Streaming error: {e!s}",
                 "code": "streaming_error",
             }
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error during streaming")
         yield _format_sse_event(
             {
@@ -699,7 +700,7 @@ async def ask_assistant(
         )
 
     except ProviderInitializationError as e:
-        logger.error("Failed to initialize AI provider: %s", str(e))
+        logger.exception("Failed to initialize AI provider")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
@@ -780,7 +781,11 @@ async def assistant_health_check(
     return {
         "status": "healthy" if configured_providers else "degraded",
         "providers_configured": configured_providers,
-        "default_provider": "openai" if "openai" in configured_providers else configured_providers[0] if configured_providers else None,
+        "default_provider": (
+            "openai"
+            if "openai" in configured_providers
+            else configured_providers[0] if configured_providers else None
+        ),
         "redis_connected": redis_connected,
         "supported_personalities": SUPPORTED_PERSONALITIES,
         "timestamp": datetime.now(UTC).isoformat(),

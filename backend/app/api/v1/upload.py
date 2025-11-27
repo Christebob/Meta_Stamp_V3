@@ -376,8 +376,7 @@ async def trigger_fingerprint_generation(
         user_id: User ID who owns the asset.
     """
     logger.info(
-        f"Queueing fingerprint generation for asset_id={asset_id}, "
-        f"file_type={file_type}"
+        f"Queueing fingerprint generation for asset_id={asset_id}, " f"file_type={file_type}"
     )
 
     background_tasks.add_task(
@@ -995,9 +994,7 @@ async def upload_url(
                 user_id=str(current_user.id),
             )
 
-        logger.info(
-            f"URL import successful: asset_id={result['asset_id']}, platform={platform}"
-        )
+        logger.info(f"URL import successful: asset_id={result['asset_id']}, platform={platform}")
 
         return UploadResponse(
             asset_id=result["asset_id"],
@@ -1105,9 +1102,20 @@ async def get_presigned_url(
 
     # Reject dangerous file types (additional security check)
     dangerous_extensions = {
-        ".zip", ".rar", ".7z", ".tar", ".gz",
-        ".exe", ".bin", ".sh", ".bat", ".cmd", ".msi",
-        ".app", ".dmg", ".iso",
+        ".zip",
+        ".rar",
+        ".7z",
+        ".tar",
+        ".gz",
+        ".exe",
+        ".bin",
+        ".sh",
+        ".bat",
+        ".cmd",
+        ".msi",
+        ".app",
+        ".dmg",
+        ".iso",
     }
     if extension in dangerous_extensions:
         logger.warning(f"Dangerous file extension rejected: {extension}")
@@ -1155,8 +1163,7 @@ async def get_presigned_url(
         expires_in = result.get("expires_in", PRESIGNED_URL_EXPIRATION_SECONDS)
 
         logger.info(
-            f"Presigned URL generated: asset_id={result['asset_id']}, "
-            f"expires={expiration}"
+            f"Presigned URL generated: asset_id={result['asset_id']}, " f"expires={expiration}"
         )
 
         return PresignedUrlResponse(
@@ -1275,9 +1282,7 @@ async def confirm_upload(
             user_id=str(current_user.id),
         )
 
-        logger.info(
-            f"Upload confirmed: asset_id={request.asset_id}, file_type={file_type}"
-        )
+        logger.info(f"Upload confirmed: asset_id={request.asset_id}, file_type={file_type}")
 
         return UploadResponse(
             asset_id=request.asset_id,
