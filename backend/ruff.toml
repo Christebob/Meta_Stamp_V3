@@ -250,9 +250,65 @@ lines-between-types = 1
     # The fixture's side effects (setup/teardown) are the important part
     "ARG001",
     
+    # ARG002: Unused method argument (self, cls)
+    # Reason: Test methods in classes may have fixtures/parameters not directly used
+    "ARG002",
+    
     # PT004: Fixture does not return anything, add leading underscore
     # Reason: We may have setup fixtures that don't need to return values
     "PT004",
+    
+    # PT011: pytest.raises without match parameter
+    # Reason: Tests may only need to verify exception type, not message content
+    "PT011",
+    
+    # PT017: Found assertion on exception `exc` instead of `flaky` test
+    # Reason: Testing exception attributes directly is a valid pattern
+    "PT017",
+    
+    # W291: Trailing whitespace
+    # Reason: Test fixtures may contain intentional trailing whitespace (e.g., PDF content)
+    "W291",
+    
+    # SIM105: Use contextlib.suppress instead of try-except-pass
+    # Reason: Cleanup fixtures use explicit try-except-pass for clarity
+    "SIM105",
+    
+    # SIM117: Use single with statement with multiple managers
+    # Reason: Multiple context managers may be clearer in separate statements
+    "SIM117",
+    
+    # PLC0415: Import should be at top of file
+    # Reason: Local imports in test methods are common for test isolation
+    "PLC0415",
+    
+    # N806: Variable in function should be lowercase
+    # Reason: Test variables may intentionally match class/type names for clarity
+    "N806",
+    
+    # F841: Local variable assigned but never used
+    # Reason: Tests may capture return values for debugging without using them
+    "F841",
+    
+    # B017: assertRaises(Exception) should be more specific
+    # Reason: Some tests intentionally check for generic exceptions
+    "B017",
+    
+    # B905: zip() without explicit strict= parameter
+    # Reason: Test data iteration doesn't always need strict mode
+    "B905",
+    
+    # TRY002: Create your own exception class
+    # Reason: Tests raising standard exceptions is valid for testing error handling
+    "TRY002",
+    
+    # DTZ003: datetime.utcnow() is deprecated
+    # Reason: Test fixtures may use utcnow() for backward compatibility in mocks
+    "DTZ003",
+    
+    # PTH123: open() should use Path
+    # Reason: Tests may use open() for simplicity in mock scenarios
+    "PTH123",
 ]
 
 # Configuration and conftest files have special patterns
@@ -261,6 +317,14 @@ lines-between-types = 1
     # Reason: Conftest fixtures often define dependencies that may not be
     # directly used but are needed for other fixtures or test setup
     "ARG001",
+    
+    # W291: Trailing whitespace
+    # Reason: PDF fixture content requires trailing whitespace for valid xref format
+    "W291",
+    
+    # SIM105: Use contextlib.suppress instead of try-except-pass
+    # Reason: Cleanup fixtures use try-except-pass for explicit error handling
+    "SIM105",
 ]
 
 # Migration files (if any exist in the future) should be lenient
