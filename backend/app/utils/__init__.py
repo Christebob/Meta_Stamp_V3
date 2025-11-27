@@ -84,38 +84,35 @@ Author: META-STAMP V3 Development Team
 # FILE VALIDATOR IMPORTS
 # =============================================================================
 
-from app.utils.file_validator import (
-    # Core validation functions (required exports)
-    validate_file_extension,
-    validate_file_size,
-    sanitize_filename,
-    validate_uploaded_file,
-    validate_url,
-    # Upload strategy determination (required export)
-    should_use_presigned_upload,
-)
-
 # =============================================================================
 # CACHE IMPORTS
 # =============================================================================
-
 from app.utils.cache import (
     # Decorator for async function caching (required export)
     cache_decorator,
+    # Pattern-based cache invalidation (required export)
+    clear_cache_pattern,
+    delete_cached_value,
     # Cache key generation utility (required export)
     generate_cache_key,
     # Async cache operations (required exports)
     get_cached_value,
     set_cached_value,
-    delete_cached_value,
-    # Pattern-based cache invalidation (required export)
-    clear_cache_pattern,
+)
+from app.utils.file_validator import (
+    sanitize_filename,
+    # Upload strategy determination (required export)
+    should_use_presigned_upload,
+    # Core validation functions (required exports)
+    validate_file_extension,
+    validate_file_size,
+    validate_uploaded_file,
+    validate_url,
 )
 
 # =============================================================================
 # LOGGER IMPORTS
 # =============================================================================
-
 from app.utils.logger import (
     # Logger factory function (required export)
     get_logger,
@@ -126,44 +123,53 @@ from app.utils.logger import (
 # =============================================================================
 # SECURITY IMPORTS
 # =============================================================================
-
 from app.utils.security import (
     # JWT token operations (required exports)
     generate_jwt_token,
-    validate_jwt_token,
-    # Password hashing (required exports)
-    hash_password,
-    verify_password,
     # Secure random generation (required export)
     generate_secure_random,
+    # Password hashing (required exports)
+    hash_password,
+    validate_jwt_token,
+    verify_password,
 )
+
 
 # =============================================================================
 # PUBLIC API DEFINITION
 # =============================================================================
 
 __all__ = [
-    # File validator - Core validation functions
+    # Alphabetically sorted for ruff RUF022 compliance
+    # Cache utilities (cache.py)
+    "cache_decorator",
+    "clear_cache_pattern",
+    "delete_cached_value",
+    "generate_cache_key",
+    # Security utilities (security.py)
+    "generate_jwt_token",
+    "generate_secure_random",
+    # Cache utilities (cache.py)
+    "get_cached_value",
+    # Logging utilities (logger.py)
+    "get_logger",
+    # Security utilities (security.py)
+    "hash_password",
+    # File validation utilities (file_validator.py)
+    "sanitize_filename",
+    # Cache utilities (cache.py)
+    "set_cached_value",
+    # Logging utilities (logger.py)
+    "setup_logging",
+    # File validation utilities (file_validator.py)
+    "should_use_presigned_upload",
     "validate_file_extension",
     "validate_file_size",
-    "sanitize_filename",
+    # Security utilities (security.py)
+    "validate_jwt_token",
+    # File validation utilities (file_validator.py)
     "validate_uploaded_file",
     "validate_url",
-    "should_use_presigned_upload",
-    # Cache - Decorator and operations
-    "cache_decorator",
-    "generate_cache_key",
-    "get_cached_value",
-    "set_cached_value",
-    "delete_cached_value",
-    "clear_cache_pattern",
-    # Logger - Configuration and factory
-    "get_logger",
-    "setup_logging",
-    # Security - JWT, passwords, and random generation
-    "generate_jwt_token",
-    "validate_jwt_token",
-    "hash_password",
+    # Security utilities (security.py)
     "verify_password",
-    "generate_secure_random",
 ]
