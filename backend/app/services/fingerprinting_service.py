@@ -40,6 +40,8 @@ import numpy as np
 from bson import ObjectId
 from langchain_openai import OpenAIEmbeddings
 from PIL import Image
+from PIL import UnidentifiedImageError
+from pydantic import SecretStr
 
 from app.core.database import get_db_client
 from app.models.fingerprint import Fingerprint, FingerprintType, ProcessingStatus
@@ -126,17 +128,19 @@ class FingerprintingService:
         self.storage = storage_service
         self.metadata = metadata_service
         self.logger = logging.getLogger(__name__)
+        self.embeddings: OpenAIEmbeddings | None = None
 
         # Initialize OpenAI embeddings if API key provided
         if openai_api_key:
             try:
-                self.embeddings = OpenAIEmbeddings(api_key=openai_api_key)
+                self.embeddings = OpenAIEmbeddings(
+                    api_key=SecretStr(openai_api_key)
+                )
                 self.logger.info("OpenAI embeddings initialized successfully")
             except Exception as e:
                 self.logger.warning(f"Failed to initialize OpenAI embeddings: {e}")
                 self.embeddings = None
         else:
-            self.embeddings = None
             self.logger.info("OpenAI embeddings not configured (no API key provided)")
 
     async def fingerprint_image(self, file_path: str) -> dict[str, Any]:
@@ -200,17 +204,21 @@ class FingerprintingService:
                 # dHash: Difference hash - captures gradient information
                 dhash = imagehash.dhash(img_resized, hash_size=DEFAULT_HASH_SIZE)
 
-                perceptual_hashes = {
-                    "phash": self._normalize_hash(phash),
-                    "ahash": self._normalize_hash(ahash),
-                    "dhash": self._normalize_hash(dhash),
+                phash_str = self._normalize_hash(phash)
+                ahash_str = self._normalize_hash(ahash)
+                dhash_str = self._normalize_hash(dhash)
+
+                perceptual_hashes: dict[str, str | int] = {
+                    "phash": phash_str,
+                    "ahash": ahash_str,
+                    "dhash": dhash_str,
                     "hash_size": DEFAULT_HASH_SIZE,
                 }
 
                 self.logger.debug(
-                    f"Generated hashes - pHash: {perceptual_hashes['phash'][:16]}..., "
-                    f"aHash: {perceptual_hashes['ahash'][:16]}..., "
-                    f"dHash: {perceptual_hashes['dhash'][:16]}..."
+                    f"Generated hashes - pHash: {phash_str[:16]}..., "
+                    f"aHash: {ahash_str[:16]}..., "
+                    f"dHash: {dhash_str[:16]}..."
                 )
 
             # Extract comprehensive image metadata
@@ -244,7 +252,7 @@ class FingerprintingService:
             self.logger.info(f"Image fingerprint generated successfully for {path.name}")
             return result
 
-        except Image.UnidentifiedImageError as e:
+        except UnidentifiedImageError as e:
             error_msg = f"Cannot identify image file: {file_path}"
             self.logger.exception(error_msg)
             raise FingerprintGenerationError(error_msg) from e
@@ -1003,7 +1011,7 @@ class FingerprintingService:
         """
         return str(hash_obj)
 
-    def _compute_array_hash(self, array: np.ndarray) -> str:
+    def _compute_array_hash(self, array: "np.ndarray[Any, Any]") -> str:
         """
         Compute SHA-256 hash of numpy array for spectral fingerprinting.
 
@@ -1079,14 +1087,15 @@ async def process_image(file_path: str, openai_api_key: str | None = None) -> di
     service = FingerprintingService.__new__(FingerprintingService)
     service.metadata = metadata_service
     service.logger = logging.getLogger(__name__)
+    service.embeddings = None
 
     if openai_api_key:
         try:
-            service.embeddings = OpenAIEmbeddings(api_key=openai_api_key)
+            service.embeddings = OpenAIEmbeddings(
+                api_key=SecretStr(openai_api_key)
+            )
         except Exception:
             service.embeddings = None
-    else:
-        service.embeddings = None
 
     return await service.fingerprint_image(file_path)
 
@@ -1113,14 +1122,15 @@ async def process_audio(file_path: str, openai_api_key: str | None = None) -> di
     service = FingerprintingService.__new__(FingerprintingService)
     service.metadata = metadata_service
     service.logger = logging.getLogger(__name__)
+    service.embeddings = None
 
     if openai_api_key:
         try:
-            service.embeddings = OpenAIEmbeddings(api_key=openai_api_key)
+            service.embeddings = OpenAIEmbeddings(
+                api_key=SecretStr(openai_api_key)
+            )
         except Exception:
             service.embeddings = None
-    else:
-        service.embeddings = None
 
     return await service.fingerprint_audio(file_path)
 
@@ -1147,14 +1157,15 @@ async def process_video(file_path: str, openai_api_key: str | None = None) -> di
     service = FingerprintingService.__new__(FingerprintingService)
     service.metadata = metadata_service
     service.logger = logging.getLogger(__name__)
+    service.embeddings = None
 
     if openai_api_key:
         try:
-            service.embeddings = OpenAIEmbeddings(api_key=openai_api_key)
+            service.embeddings = OpenAIEmbeddings(
+                api_key=SecretStr(openai_api_key)
+            )
         except Exception:
             service.embeddings = None
-    else:
-        service.embeddings = None
 
     return await service.fingerprint_video(file_path)
 
@@ -1178,14 +1189,15 @@ async def process_text(content: str, openai_api_key: str | None = None) -> dict[
     """
     service = FingerprintingService.__new__(FingerprintingService)
     service.logger = logging.getLogger(__name__)
+    service.embeddings = None
 
     if openai_api_key:
         try:
-            service.embeddings = OpenAIEmbeddings(api_key=openai_api_key)
+            service.embeddings = OpenAIEmbeddings(
+                api_key=SecretStr(openai_api_key)
+            )
         except Exception:
             service.embeddings = None
-    else:
-        service.embeddings = None
 
     return await service.fingerprint_text(content)
 

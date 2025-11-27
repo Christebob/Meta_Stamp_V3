@@ -153,7 +153,7 @@ class RedisClient:
                     max_retries,
                 )
 
-                self._client = redis.from_url(
+                self._client = redis.from_url(  # type: ignore[no-untyped-call]
                     self.settings.redis_url,
                     encoding="utf-8",
                     decode_responses=True,
@@ -163,7 +163,7 @@ class RedisClient:
                 )
 
                 # Test connection with ping
-                await self._client.ping()
+                await self._client.ping()  # type: ignore[misc]
                 self._connected = True
 
                 logger.info("Successfully connected to Redis")
@@ -220,7 +220,7 @@ class RedisClient:
             return False
 
         try:
-            result = await self._client.ping()
+            result = await self._client.ping()  # type: ignore[misc]
             return result is True or result == "PONG"
         except (RedisError, RedisConnectionError) as e:
             logger.warning("Redis ping failed: %s", str(e))
@@ -260,7 +260,8 @@ class RedisClient:
             return None
 
         try:
-            return await self._client.get(key)
+            result: str | None = await self._client.get(key)
+            return result
         except RedisError:
             logger.exception("Failed to get key '%s'", key)
             return None
@@ -312,8 +313,8 @@ class RedisClient:
             return False
 
         try:
-            result = await self._client.delete(key)
-            deleted = result > 0
+            result: int = await self._client.delete(key)
+            deleted: bool = result > 0
             if deleted:
                 logger.debug("Deleted key '%s'", key)
             return deleted
@@ -336,8 +337,8 @@ class RedisClient:
             return False
 
         try:
-            result = await self._client.exists(key)
-            return result > 0
+            result: int = await self._client.exists(key)
+            return bool(result > 0)
         except RedisError:
             logger.exception("Failed to check existence of key '%s'", key)
             return False
@@ -379,7 +380,8 @@ class RedisClient:
             return -2
 
         try:
-            return await self._client.ttl(key)
+            result: int = await self._client.ttl(key)
+            return result
         except RedisError:
             logger.exception("Failed to get TTL for key '%s'", key)
             return -2
@@ -476,7 +478,8 @@ class RedisClient:
             return None
 
         try:
-            return await self._client.hget(name, key)
+            result: str | None = await self._client.hget(name, key)  # type: ignore[misc]
+            return result
         except RedisError:
             logger.exception("Failed to hget '%s.%s'", name, key)
             return None
@@ -499,7 +502,7 @@ class RedisClient:
 
         try:
             str_value = str(value) if not isinstance(value, str) else value
-            await self._client.hset(name, key, str_value)
+            await self._client.hset(name, key, str_value)  # type: ignore[misc]
             logger.debug("Set hash field '%s.%s'", name, key)
             return True
         except RedisError:
@@ -523,7 +526,7 @@ class RedisClient:
             return {}
 
         try:
-            result = await self._client.hgetall(name)
+            result: dict[str, str] = await self._client.hgetall(name)  # type: ignore[misc]
             return result or {}
         except RedisError:
             logger.exception("Failed to hgetall '%s'", name)
@@ -548,7 +551,7 @@ class RedisClient:
             return 0
 
         try:
-            result = await self._client.hdel(name, *keys)
+            result: int = await self._client.hdel(name, *keys)  # type: ignore[misc]
             logger.debug("Deleted %d fields from hash '%s'", result, name)
             return result
         except RedisError:
@@ -564,7 +567,7 @@ class RedisClient:
 def cache_result(
     ttl: int = 300,
     key_prefix: str = "",
-) -> Callable:
+) -> Callable[..., Any]:
     """
     Decorator for caching async function results in Redis.
 
@@ -604,7 +607,7 @@ def cache_result(
         ```
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Get Redis client

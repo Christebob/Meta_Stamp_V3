@@ -23,7 +23,7 @@ import chardet
 import cv2
 import librosa
 
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from PIL.ExifTags import TAGS
 from PyPDF2 import PdfReader
 
@@ -144,7 +144,7 @@ class MetadataService:
                 )
                 return metadata
 
-        except Image.UnidentifiedImageError as e:
+        except UnidentifiedImageError as e:
             self.logger.exception("Cannot identify image file: %s", file_path)
             raise ValueError(f"Cannot identify image file: {file_path}") from e
         except Exception:

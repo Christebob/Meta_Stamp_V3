@@ -418,10 +418,10 @@ class AIValueService:
                 # Get database client and store record
                 db_client = get_db_client()
                 analytics_collection = db_client.get_analytics_collection()
-                result = await analytics_collection.insert_one(
+                insert_result = await analytics_collection.insert_one(
                     calculation_record.to_mongodb_dict()
                 )
-                calculation_id = str(result.inserted_id)
+                calculation_id = str(insert_result.inserted_id)
 
                 self.logger.info(
                     f"Stored calculation record with ID: {calculation_id}"

@@ -39,7 +39,8 @@ import traceback
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, ClassVar
+from types import TracebackType
+from typing import Any, ClassVar, MutableMapping
 
 
 # =============================================================================
@@ -68,7 +69,7 @@ LOG_LEVEL_MAP: dict[str, int] = {
 }
 
 # Third-party loggers to reduce verbosity
-THIRD_PARTY_LOGGERS: list = [
+THIRD_PARTY_LOGGERS: list[str] = [
     "uvicorn",
     "uvicorn.access",
     "uvicorn.error",
@@ -334,7 +335,9 @@ class JSONFormatter(logging.Formatter):
             }
         return {}
 
-    def _format_traceback(self, exc_info: tuple) -> str:
+    def _format_traceback(
+        self, exc_info: tuple[type[BaseException] | None, BaseException | None, TracebackType | None]
+    ) -> str:
         """
         Format the exception traceback as a string.
 
@@ -709,7 +712,7 @@ def _configure_third_party_loggers(level: int) -> None:
 # =============================================================================
 
 
-class ContextLoggerAdapter(logging.LoggerAdapter):
+class ContextLoggerAdapter(logging.LoggerAdapter[logging.Logger]):
     """
     Custom LoggerAdapter that properly merges context with log record extra fields.
 
@@ -718,7 +721,9 @@ class ContextLoggerAdapter(logging.LoggerAdapter):
     rather than overwriting them.
     """
 
-    def process(self, msg: str, kwargs: dict[str, Any]) -> tuple:
+    def process(
+        self, msg: str, kwargs: MutableMapping[str, Any]
+    ) -> tuple[str, MutableMapping[str, Any]]:
         """
         Process the logging call by merging context with extra fields.
 
@@ -730,12 +735,13 @@ class ContextLoggerAdapter(logging.LoggerAdapter):
             Tuple of (message, modified kwargs)
         """
         # Get existing extra dict or create empty one
-        extra = kwargs.get("extra", {})
+        extra: dict[str, Any] = dict(kwargs.get("extra", {}))
 
         # Merge our context into extra, preserving existing values
-        for key, value in self.extra.items():
-            if key not in extra:
-                extra[key] = value
+        if self.extra is not None:
+            for key, value in self.extra.items():
+                if key not in extra:
+                    extra[key] = value
 
         kwargs["extra"] = extra
         return msg, kwargs
@@ -744,7 +750,7 @@ class ContextLoggerAdapter(logging.LoggerAdapter):
 def add_log_context(
     logger: logging.Logger,
     **kwargs: Any,
-) -> logging.LoggerAdapter:
+) -> logging.LoggerAdapter[logging.Logger]:
     """
     Create a LoggerAdapter that enriches all log messages with context fields.
 

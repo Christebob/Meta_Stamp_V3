@@ -27,7 +27,7 @@ import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
 
-from app.config import Settings
+from app.config import Settings, get_settings
 
 
 # Configure module-level constants to avoid magic numbers
@@ -97,7 +97,7 @@ class StorageClient:
             ClientError: If S3 client initialization fails due to invalid credentials
                         or network issues.
         """
-        self.settings = settings or Settings()
+        self.settings = settings or get_settings()
 
         # Build client configuration with signature version for presigned URLs
         client_config = Config(
@@ -191,7 +191,7 @@ class StorageClient:
             )
 
         try:
-            presigned_url = self.s3_client.generate_presigned_url(
+            presigned_url: str = self.s3_client.generate_presigned_url(
                 ClientMethod="put_object",
                 Params={
                     "Bucket": self.bucket_name,
@@ -262,7 +262,7 @@ class StorageClient:
             )
 
         try:
-            presigned_url = self.s3_client.generate_presigned_url(
+            presigned_url: str = self.s3_client.generate_presigned_url(
                 ClientMethod="get_object",
                 Params={
                     "Bucket": self.bucket_name,
@@ -327,7 +327,7 @@ class StorageClient:
                 Key=key,
                 ContentType=content_type,
             )
-            upload_id = response["UploadId"]
+            upload_id: str = response["UploadId"]
 
             logger.info(
                 "Initiated multipart upload",
@@ -394,7 +394,7 @@ class StorageClient:
         expiration = expires_in or self.settings.presigned_url_expiration_seconds
 
         try:
-            presigned_url = self.s3_client.generate_presigned_url(
+            presigned_url: str = self.s3_client.generate_presigned_url(
                 ClientMethod="upload_part",
                 Params={
                     "Bucket": self.bucket_name,

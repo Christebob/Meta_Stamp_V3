@@ -74,7 +74,8 @@ def hash_password(password: str) -> str:
     if not password:
         raise ValueError("Password cannot be empty")
 
-    return pwd_context.hash(password)
+    result: str = pwd_context.hash(password)
+    return result
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -100,7 +101,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
     try:
-        return pwd_context.verify(plain_password, hashed_password)
+        result: bool = pwd_context.verify(plain_password, hashed_password)
+        return result
     except Exception as e:
         logger.warning(f"Password verification error: {e}")
         return False
@@ -169,7 +171,8 @@ def generate_jwt_token(
     )
 
     # Encode and return the token
-    return jwt.encode(payload, secret_key, algorithm=algorithm)
+    result: str = jwt.encode(payload, secret_key, algorithm=algorithm)
+    return result
 
 
 def validate_jwt_token(
@@ -202,7 +205,7 @@ def validate_jwt_token(
 
     try:
         # Decode the token with verification
-        return jwt.decode(
+        result: dict[str, Any] = jwt.decode(
             token,
             secret_key,
             algorithms=[algorithm],
@@ -213,6 +216,7 @@ def validate_jwt_token(
                 "require": ["exp", "iat"],
             },
         )
+        return result
 
     except ExpiredSignatureError:
         logger.warning("Token validation failed: token has expired")
@@ -254,7 +258,8 @@ class _JWKSCache:
             and self.timestamp is not None
             and now - self.timestamp < _JWKS_CACHE_TTL
         ):
-            return self.cache[key]
+            result: dict[str, Any] = self.cache[key]
+            return result
         return None
 
     def set(self, key: str, value: dict[str, Any]) -> None:
@@ -295,7 +300,7 @@ def _get_auth0_jwks(auth0_domain: str) -> dict[str, Any]:
         with httpx.Client(timeout=10.0) as client:
             response = client.get(jwks_url)
             response.raise_for_status()
-            jwks = response.json()
+            jwks: dict[str, Any] = response.json()
 
         if "keys" not in jwks or not jwks["keys"]:
             raise ValueError("Invalid JWKS: no keys found")
@@ -408,7 +413,7 @@ def validate_auth0_token(token: str, auth0_domain: str, api_audience: str) -> di
 
         # Decode and validate the token
         issuer = f"https://{auth0_domain}/"
-        return jwt.decode(
+        decoded_payload: dict[str, Any] = jwt.decode(
             token,
             rsa_key,
             algorithms=["RS256"],
@@ -422,6 +427,7 @@ def validate_auth0_token(token: str, auth0_domain: str, api_audience: str) -> di
                 "require": ["exp", "iat", "aud", "iss", "sub"],
             },
         )
+        return decoded_payload
 
     except ExpiredSignatureError:
         logger.warning("Auth0 token validation failed: token has expired")

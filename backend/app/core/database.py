@@ -16,6 +16,7 @@ requirements for async Motor driver usage.
 
 import asyncio
 import logging
+from typing import Any
 
 from motor.motor_asyncio import (
     AsyncIOMotorClient,
@@ -24,7 +25,7 @@ from motor.motor_asyncio import (
 )
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
-from app.config import Settings
+from app.config import Settings, get_settings
 
 
 # Configure module logger for structured logging
@@ -84,8 +85,8 @@ class DatabaseClient:
         self._db_name = settings.mongodb_db_name
         self._min_pool_size = settings.mongodb_min_pool_size
         self._max_pool_size = settings.mongodb_max_pool_size
-        self._client: AsyncIOMotorClient | None = None
-        self._database: AsyncIOMotorDatabase | None = None
+        self._client: AsyncIOMotorClient[Any] | None = None
+        self._database: AsyncIOMotorDatabase[Any] | None = None
 
         logger.info(
             f"DatabaseClient initialized with pool size {self._min_pool_size}-{self._max_pool_size} "
@@ -217,12 +218,12 @@ class DatabaseClient:
             logger.exception("MongoDB ping failed with unexpected error")
             return False
 
-    def get_database(self) -> AsyncIOMotorDatabase:
+    def get_database(self) -> AsyncIOMotorDatabase[Any]:
         """
         Get the database instance for direct operations.
 
         Returns:
-            AsyncIOMotorDatabase: Motor database instance for the configured database.
+            AsyncIOMotorDatabase[Any]: Motor database instance for the configured database.
 
         Raises:
             RuntimeError: If not connected to MongoDB.
@@ -233,7 +234,7 @@ class DatabaseClient:
             )
         return self._database
 
-    def get_assets_collection(self) -> AsyncIOMotorCollection:
+    def get_assets_collection(self) -> AsyncIOMotorCollection[Any]:
         """
         Get the assets collection for asset metadata storage.
 
@@ -243,7 +244,7 @@ class DatabaseClient:
         - Creation timestamp, fingerprint ID reference
 
         Returns:
-            AsyncIOMotorCollection: Motor collection for assets.
+            AsyncIOMotorCollection[Any]: Motor collection for assets.
 
         Raises:
             RuntimeError: If not connected to MongoDB.
@@ -254,7 +255,7 @@ class DatabaseClient:
             )
         return self._database[ASSETS_COLLECTION]
 
-    def get_users_collection(self) -> AsyncIOMotorCollection:
+    def get_users_collection(self) -> AsyncIOMotorCollection[Any]:
         """
         Get the users collection for user profiles.
 
@@ -263,7 +264,7 @@ class DatabaseClient:
         - Creation timestamp, last login timestamp
 
         Returns:
-            AsyncIOMotorCollection: Motor collection for users.
+            AsyncIOMotorCollection[Any]: Motor collection for users.
 
         Raises:
             RuntimeError: If not connected to MongoDB.
@@ -274,7 +275,7 @@ class DatabaseClient:
             )
         return self._database[USERS_COLLECTION]
 
-    def get_fingerprints_collection(self) -> AsyncIOMotorCollection:
+    def get_fingerprints_collection(self) -> AsyncIOMotorCollection[Any]:
         """
         Get the fingerprints collection for fingerprint data.
 
@@ -285,7 +286,7 @@ class DatabaseClient:
         - Metadata, creation timestamp
 
         Returns:
-            AsyncIOMotorCollection: Motor collection for fingerprints.
+            AsyncIOMotorCollection[Any]: Motor collection for fingerprints.
 
         Raises:
             RuntimeError: If not connected to MongoDB.
@@ -296,7 +297,7 @@ class DatabaseClient:
             )
         return self._database[FINGERPRINTS_COLLECTION]
 
-    def get_wallet_collection(self) -> AsyncIOMotorCollection:
+    def get_wallet_collection(self) -> AsyncIOMotorCollection[Any]:
         """
         Get the wallet collection for transactions and balances.
 
@@ -305,7 +306,7 @@ class DatabaseClient:
         - Transaction history with amounts, types, timestamps
 
         Returns:
-            AsyncIOMotorCollection: Motor collection for wallet data.
+            AsyncIOMotorCollection[Any]: Motor collection for wallet data.
 
         Raises:
             RuntimeError: If not connected to MongoDB.
@@ -316,7 +317,7 @@ class DatabaseClient:
             )
         return self._database[WALLET_COLLECTION]
 
-    def get_analytics_collection(self) -> AsyncIOMotorCollection:
+    def get_analytics_collection(self) -> AsyncIOMotorCollection[Any]:
         """
         Get the analytics collection for AI Touch Value™ calculations.
 
@@ -326,7 +327,7 @@ class DatabaseClient:
         - Calculated AI Touch Value™, timestamp
 
         Returns:
-            AsyncIOMotorCollection: Motor collection for analytics.
+            AsyncIOMotorCollection[Any]: Motor collection for analytics.
 
         Raises:
             RuntimeError: If not connected to MongoDB.
@@ -436,9 +437,9 @@ async def init_db(settings: Settings | None = None) -> DatabaseClient:
         logger.warning("Database client already initialized, returning existing instance")
         return _container.client
 
-    # Use provided settings or create new instance
+    # Use provided settings or get cached instance
     if settings is None:
-        settings = Settings()
+        settings = get_settings()
 
     logger.info("Initializing MongoDB database client...")
 
@@ -496,7 +497,7 @@ def get_db_client() -> DatabaseClient:
     return _container.client
 
 
-def get_database() -> AsyncIOMotorDatabase:
+def get_database() -> AsyncIOMotorDatabase[Any]:
     """
     Get the database instance from the global client.
 
@@ -504,7 +505,7 @@ def get_database() -> AsyncIOMotorDatabase:
     going through get_db_client().
 
     Returns:
-        AsyncIOMotorDatabase: Motor database instance for the configured database.
+        AsyncIOMotorDatabase[Any]: Motor database instance for the configured database.
 
     Raises:
         RuntimeError: If database client has not been initialized.

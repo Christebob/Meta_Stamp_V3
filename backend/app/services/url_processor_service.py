@@ -497,6 +497,8 @@ class URLProcessorService:
             script_tags = soup.find_all("script", type="application/ld+json")
             for script in script_tags:
                 try:
+                    if script.string is None:
+                        continue
                     data = json.loads(script.string)
                     if isinstance(data, dict) and data.get("@type") == "VideoObject":
                         metadata["channel"] = data.get("author", {}).get("name")
@@ -669,6 +671,8 @@ class URLProcessorService:
             script_tags = soup.find_all("script", type="application/ld+json")
             for script in script_tags:
                 try:
+                    if script.string is None:
+                        continue
                     data = json.loads(script.string)
                     if isinstance(data, dict) and data.get("@type") == "VideoObject":
                         if not metadata["title"]:
@@ -821,12 +825,14 @@ class URLProcessorService:
         # Try Open Graph title
         og_title = soup.find("meta", property="og:title")
         if og_title and og_title.get("content"):
-            return og_title["content"].strip()
+            content = og_title["content"]
+            return str(content).strip() if content else None
 
         # Try Twitter card title
         twitter_title = soup.find("meta", attrs={"name": "twitter:title"})
         if twitter_title and twitter_title.get("content"):
-            return twitter_title["content"].strip()
+            content = twitter_title["content"]
+            return str(content).strip() if content else None
 
         # Try HTML title tag
         title_tag = soup.find("title")
@@ -853,17 +859,20 @@ class URLProcessorService:
         # Try Open Graph description
         og_description = soup.find("meta", property="og:description")
         if og_description and og_description.get("content"):
-            return og_description["content"].strip()
+            content = og_description["content"]
+            return str(content).strip() if content else None
 
         # Try Twitter card description
         twitter_description = soup.find("meta", attrs={"name": "twitter:description"})
         if twitter_description and twitter_description.get("content"):
-            return twitter_description["content"].strip()
+            content = twitter_description["content"]
+            return str(content).strip() if content else None
 
         # Try standard meta description
         meta_description = soup.find("meta", attrs={"name": "description"})
         if meta_description and meta_description.get("content"):
-            return meta_description["content"].strip()
+            content = meta_description["content"]
+            return str(content).strip() if content else None
 
         return None
 
