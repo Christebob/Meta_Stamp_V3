@@ -38,12 +38,16 @@ Usage:
     ```
 """
 
+import contextlib
 import json
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+
+from datetime import UTC, datetime, timedelta
+from hashlib import sha256
+from typing import Any
 
 import requests
+
 from bson import ObjectId
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -84,6 +88,16 @@ SESSION_KEY_PREFIX = "session"
 
 # User cache key prefix
 USER_KEY_PREFIX = "user"
+
+# =============================================================================
+# JWT Format Constants
+# =============================================================================
+
+# JWT format: header.payload.signature (3 parts)
+JWT_PARTS_COUNT = 3
+
+# Base64 padding byte boundary
+BASE64_PADDING_BOUNDARY = 4
 
 
 # =============================================================================
@@ -160,7 +174,7 @@ class Auth0TokenValidator:
         Raises:
             HTTPException: If JWKS fetch fails.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Check if cache is still valid
         if self._jwks_cache is not None and self._jwks_cache_time is not None:
@@ -181,7 +195,7 @@ class Auth0TokenValidator:
             logger.info("JWKS fetched and cached successfully")
             return self._jwks_cache
         except requests.RequestException as e:
-            logger.error("Failed to fetch JWKS from Auth0: %s", str(e))
+            logger.exception("Failed to fetch JWKS from Auth0")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Unable to verify token: Auth0 JWKS endpoint unavailable",
@@ -232,7 +246,7 @@ class Auth0TokenValidator:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error("Error getting Auth0 public key: %s", str(e))
+            logger.exception("Error getting Auth0 public key")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token format",
@@ -277,24 +291,24 @@ class Auth0TokenValidator:
             )
             return payload
 
-        except jwt.ExpiredSignatureError:
+        except jwt.ExpiredSignatureError as e:
             logger.warning("Auth0 token has expired")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has expired",
-            )
+            ) from e
         except jwt.JWTClaimsError as e:
             logger.warning("Auth0 token claims validation failed: %s", str(e))
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token claims",
-            )
+            ) from e
         except JWTError as e:
             logger.warning("Auth0 token validation failed: %s", str(e))
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
-            )
+            ) from e
         except HTTPException:
             raise
         except Exception as e:
@@ -339,7 +353,7 @@ def create_local_jwt(user_id: str, email: str, settings: Settings) -> str:
         token = create_local_jwt("user123", "user@example.com", settings)
         ```
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(hours=settings.jwt_expiration_hours)
 
     payload = {
@@ -395,7 +409,7 @@ def validate_local_jwt(token: str, settings: Settings) -> dict[str, Any]:
 def create_access_token(
     user_id: str,
     email: str,
-    settings: Optional[Settings] = None,
+    settings: Settings | None = None,
 ) -> str:
     """
     Create an access token for the given user.
@@ -428,7 +442,7 @@ def create_access_token(
 
 async def verify_auth0_token(
     token: str,
-    settings: Optional[Settings] = None,
+    settings: Settings | None = None,
 ) -> dict[str, Any]:
     """
     Verify an Auth0 JWT token.
@@ -473,23 +487,22 @@ def decode_token_without_verification(token: str) -> dict[str, Any]:
     try:
         # JWT format: header.payload.signature
         parts = token.split(".")
-        if len(parts) != 3:
-            raise ValueError("Invalid JWT format: expected 3 parts")
+        if len(parts) != JWT_PARTS_COUNT:
+            raise ValueError(f"Invalid JWT format: expected {JWT_PARTS_COUNT} parts")
 
         # Decode header (first part)
         # Add padding if necessary
         header_b64 = parts[0]
-        padding = 4 - len(header_b64) % 4
-        if padding != 4:
+        padding = BASE64_PADDING_BOUNDARY - len(header_b64) % BASE64_PADDING_BOUNDARY
+        if padding != BASE64_PADDING_BOUNDARY:
             header_b64 += "=" * padding
 
         header_bytes = base64url_decode(header_b64.encode("utf-8"))
-        header = json.loads(header_bytes.decode("utf-8"))
-        return header
+        return json.loads(header_bytes.decode("utf-8"))
 
     except Exception as e:
         logger.warning("Failed to decode token header: %s", str(e))
-        raise ValueError(f"Invalid token format: {str(e)}") from e
+        raise ValueError(f"Invalid token format: {e!s}") from e
 
 
 # =============================================================================
@@ -536,15 +549,14 @@ async def authenticate_token(
             logger.debug("Using Auth0 authentication strategy")
             validator = Auth0TokenValidator(settings)
             return await validator.validate_auth0_token(token)
-        else:
-            logger.debug("Using local JWT authentication strategy")
-            return validate_local_jwt(token, settings)
-    except JWTError:
+        logger.debug("Using local JWT authentication strategy")
+        return validate_local_jwt(token, settings)
+    except JWTError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
@@ -656,26 +668,24 @@ async def get_current_user(
 
     except HTTPException:
         raise
-    except RuntimeError as e:
-        logger.error("Database error: %s", str(e))
+    except RuntimeError:
+        logger.exception("Database error")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database unavailable",
-        ) from e
-    except Exception as e:
+        ) from None
+    except Exception:
         logger.exception("Unexpected error getting user")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
-        ) from e
+        ) from None
 
 
 async def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        HTTPBearer(auto_error=False)
-    ),
+    credentials: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False)),
     settings: Settings = Depends(get_settings),
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Get the current user if authenticated, or None if not.
 
@@ -743,10 +753,8 @@ async def get_current_user_optional(
         if user:
             user["_id"] = str(user["_id"])
             if redis_client:
-                try:
+                with contextlib.suppress(Exception):
                     await redis_client.set_json(cache_key, user, ttl=USER_CACHE_TTL)
-                except Exception:
-                    pass
             return user
 
         return None
@@ -793,7 +801,7 @@ async def create_user_session(user_id: str, token: str) -> bool:
 
         session_data = {
             "token": token,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "user_id": user_id,
         }
 
@@ -801,8 +809,8 @@ async def create_user_session(user_id: str, token: str) -> bool:
         logger.info("Session created for user: %s (TTL: %d seconds)", user_id, ttl)
         return True
 
-    except Exception as e:
-        logger.error("Failed to create session for user %s: %s", user_id, str(e))
+    except Exception:
+        logger.exception("Failed to create session for user: %s", user_id)
         return False
 
 
@@ -847,8 +855,8 @@ async def revoke_user_session(user_id: str) -> bool:
 
         return True
 
-    except Exception as e:
-        logger.error("Failed to revoke session for user %s: %s", user_id, str(e))
+    except Exception:
+        logger.exception("Failed to revoke session for user: %s", user_id)
         return False
 
 
@@ -903,7 +911,7 @@ async def verify_session(user_id: str) -> bool:
 # =============================================================================
 
 
-async def authenticate_user(email: str, password: str) -> Optional[dict[str, Any]]:
+async def authenticate_user(email: str, password: str) -> dict[str, Any] | None:
     """
     Authenticate a user with email and password.
 
@@ -953,8 +961,6 @@ async def authenticate_user(email: str, password: str) -> Optional[dict[str, Any
         #     return None
 
         # For development/testing, direct comparison (NOT secure for production)
-        from hashlib import sha256
-
         hashed_input = sha256(password.encode()).hexdigest()
         if hashed_input != stored_password:
             logger.warning("Authentication failed: invalid password for user %s", email)
@@ -963,7 +969,7 @@ async def authenticate_user(email: str, password: str) -> Optional[dict[str, Any
         # Update last login timestamp
         await users_collection.update_one(
             {"_id": user["_id"]},
-            {"$set": {"last_login": datetime.now(timezone.utc)}},
+            {"$set": {"last_login": datetime.now(UTC)}},
         )
 
         # Convert ObjectId to string for return
@@ -971,10 +977,10 @@ async def authenticate_user(email: str, password: str) -> Optional[dict[str, Any
         logger.info("User authenticated successfully: %s", email)
         return user
 
-    except RuntimeError as e:
-        logger.error("Database error during authentication: %s", str(e))
+    except RuntimeError:
+        logger.exception("Database error during authentication")
         return None
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error during authentication")
         return None
 
@@ -984,26 +990,26 @@ async def authenticate_user(email: str, password: str) -> Optional[dict[str, Any
 # =============================================================================
 
 __all__ = [
-    # Security scheme
-    "security",
     # Auth0 validator class
     "Auth0TokenValidator",
-    # Local JWT functions
-    "create_local_jwt",
-    "validate_local_jwt",
-    "create_access_token",
-    # Auth0 verification
-    "verify_auth0_token",
-    # Token utilities
-    "decode_token_without_verification",
     # Authentication dependencies
     "authenticate_token",
-    "get_current_user",
-    "get_current_user_optional",
-    # Session management
-    "create_user_session",
-    "revoke_user_session",
-    "verify_session",
     # User authentication
     "authenticate_user",
+    "create_access_token",
+    # Local JWT functions
+    "create_local_jwt",
+    # Session management
+    "create_user_session",
+    # Token utilities
+    "decode_token_without_verification",
+    "get_current_user",
+    "get_current_user_optional",
+    "revoke_user_session",
+    # Security scheme
+    "security",
+    "validate_local_jwt",
+    # Auth0 verification
+    "verify_auth0_token",
+    "verify_session",
 ]

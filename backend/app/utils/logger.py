@@ -36,11 +36,12 @@ import os
 import sys
 import traceback
 
+from collections.abc import MutableMapping
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from types import TracebackType
-from typing import Any, ClassVar, MutableMapping
+from typing import Any, ClassVar
 
 
 # =============================================================================

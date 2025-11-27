@@ -471,27 +471,9 @@ class URLProcessorService:
 
             soup = BeautifulSoup(response.text, "html.parser")
 
-            # Extract title from meta tags
-            og_title = soup.find("meta", property="og:title")
-            if og_title and og_title.get("content"):
-                metadata["title"] = og_title["content"]
-            else:
-                title_tag = soup.find("title")
-                if title_tag:
-                    title_text = title_tag.get_text()
-                    # Remove " - YouTube" suffix
-                    if " - YouTube" in title_text:
-                        title_text = title_text.rsplit(" - YouTube", 1)[0]
-                    metadata["title"] = title_text.strip()
-
-            # Extract description from meta tags
-            og_description = soup.find("meta", property="og:description")
-            if og_description and og_description.get("content"):
-                metadata["description"] = og_description["content"]
-            else:
-                meta_description = soup.find("meta", attrs={"name": "description"})
-                if meta_description and meta_description.get("content"):
-                    metadata["description"] = meta_description["content"]
+            # Extract title and description using helper methods
+            metadata["title"] = self._extract_youtube_title(soup)
+            metadata["description"] = self._extract_youtube_description(soup)
 
             # Extract channel name from JSON-LD if available
             script_tags = soup.find_all("script", type="application/ld+json")
@@ -528,6 +510,54 @@ class URLProcessorService:
             self.logger.exception("Unexpected error fetching YouTube metadata")
 
         return metadata
+
+    def _extract_youtube_title(self, soup: BeautifulSoup) -> str | None:
+        """
+        Extract YouTube video title from page soup.
+
+        Args:
+            soup: BeautifulSoup object of the page
+
+        Returns:
+            Extracted title string or None
+        """
+        # Try og:title meta tag first
+        og_title = soup.find("meta", property="og:title")
+        if og_title and og_title.get("content"):
+            return og_title["content"]
+
+        # Fallback to <title> tag
+        title_tag = soup.find("title")
+        if title_tag:
+            title_text = title_tag.get_text()
+            # Remove " - YouTube" suffix
+            if " - YouTube" in title_text:
+                title_text = title_text.rsplit(" - YouTube", 1)[0]
+            return title_text.strip()
+
+        return None
+
+    def _extract_youtube_description(self, soup: BeautifulSoup) -> str | None:
+        """
+        Extract YouTube video description from page soup.
+
+        Args:
+            soup: BeautifulSoup object of the page
+
+        Returns:
+            Extracted description string or None
+        """
+        # Try og:description meta tag first
+        og_description = soup.find("meta", property="og:description")
+        if og_description and og_description.get("content"):
+            return og_description["content"]
+
+        # Fallback to meta description
+        meta_description = soup.find("meta", attrs={"name": "description"})
+        if meta_description and meta_description.get("content"):
+            return meta_description["content"]
+
+        return None
 
     def _clean_transcript_text(self, text: str) -> str:
         """

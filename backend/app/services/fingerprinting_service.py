@@ -29,6 +29,7 @@ import hashlib
 import logging
 import tempfile
 import time
+
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -37,14 +38,14 @@ import cv2
 import imagehash
 import librosa
 import numpy as np
+
 from bson import ObjectId
 from langchain_openai import OpenAIEmbeddings
-from PIL import Image
-from PIL import UnidentifiedImageError
+from PIL import Image, UnidentifiedImageError
 from pydantic import SecretStr
 
 from app.core.database import get_db_client
-from app.models.fingerprint import Fingerprint, FingerprintType, ProcessingStatus
+from app.models.fingerprint import FingerprintType, ProcessingStatus
 from app.services.metadata_service import MetadataService
 from app.services.storage_service import StorageService
 
@@ -57,6 +58,7 @@ DEFAULT_HASH_SIZE = 16  # Hash size for perceptual hashing (produces 16x16 = 256
 AUDIO_SAMPLE_RATE = 22050  # Standard sample rate for audio analysis
 VIDEO_FRAME_INTERVAL = 1.0  # Extract frames every 1 second
 MAX_VIDEO_FRAMES = 300  # Maximum frames to analyze per video (5 minutes at 1fps)
+MAX_EMBEDDING_CONTENT_LENGTH = 8000  # Maximum characters for embedding generation
 MEL_SPECTROGRAM_N_MELS = 128  # Number of mel bands for spectrogram
 CHROMA_N_CHROMA = 12  # Number of chroma bins (standard chromatic scale)
 
@@ -133,9 +135,7 @@ class FingerprintingService:
         # Initialize OpenAI embeddings if API key provided
         if openai_api_key:
             try:
-                self.embeddings = OpenAIEmbeddings(
-                    api_key=SecretStr(openai_api_key)
-                )
+                self.embeddings = OpenAIEmbeddings(api_key=SecretStr(openai_api_key))
                 self.logger.info("OpenAI embeddings initialized successfully")
             except Exception as e:
                 self.logger.warning(f"Failed to initialize OpenAI embeddings: {e}")
@@ -187,12 +187,11 @@ class FingerprintingService:
             # Load image with PIL
             with Image.open(file_path) as img:
                 # Convert to RGB if necessary (handles RGBA, grayscale, etc.)
-                if img.mode not in ("RGB", "L"):
-                    img = img.convert("RGB")
+                img_converted = img.convert("RGB") if img.mode not in ("RGB", "L") else img
 
                 # Resize to standard dimensions for consistent hashing
                 # This ensures same hash regardless of original resolution
-                img_resized = img.resize((256, 256), Image.Resampling.LANCZOS)
+                img_resized = img_converted.resize((256, 256), Image.Resampling.LANCZOS)
 
                 # Generate perceptual hashes using imagehash library
                 # pHash: Uses DCT (discrete cosine transform) - most robust
@@ -306,9 +305,7 @@ class FingerprintingService:
         try:
             # Load audio with librosa at consistent sample rate
             # sr=AUDIO_SAMPLE_RATE ensures consistent analysis
-            audio_data, sample_rate = librosa.load(
-                file_path, sr=AUDIO_SAMPLE_RATE, mono=True
-            )
+            audio_data, sample_rate = librosa.load(file_path, sr=AUDIO_SAMPLE_RATE, mono=True)
 
             # Get audio duration
             duration = librosa.get_duration(y=audio_data, sr=sample_rate)
@@ -338,9 +335,7 @@ class FingerprintingService:
             chroma_hash = self._compute_array_hash(chromagram)
 
             # Calculate spectral centroid (timbral brightness measure)
-            spectral_centroids = librosa.feature.spectral_centroid(
-                y=audio_data, sr=sample_rate
-            )[0]
+            spectral_centroids = librosa.feature.spectral_centroid(y=audio_data, sr=sample_rate)[0]
 
             # Compute statistics for fingerprinting
             spectral_centroid_mean = float(np.mean(spectral_centroids))
@@ -450,47 +445,15 @@ class FingerprintingService:
 
             # Calculate frame interval for 1-second sampling
             frame_interval = int(fps * VIDEO_FRAME_INTERVAL)
-            if frame_interval < 1:
-                frame_interval = 1
+            frame_interval = max(frame_interval, 1)
 
             self.logger.debug(
                 f"Video analysis: {total_frames} frames @ {fps:.2f}fps, "
                 f"sampling every {frame_interval} frames"
             )
 
-            # Extract frames and generate hashes
-            frame_hashes: list[str] = []
-            frame_count = 0
-            frames_analyzed = 0
-
-            while True:
-                # Limit maximum frames to analyze
-                if frames_analyzed >= MAX_VIDEO_FRAMES:
-                    self.logger.info(f"Reached maximum frame limit ({MAX_VIDEO_FRAMES})")
-                    break
-
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
-                # Only process frames at the sampling interval
-                if frame_count % frame_interval == 0:
-                    # Convert BGR (OpenCV) to RGB (PIL)
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-                    # Convert to PIL Image for hashing
-                    pil_image = Image.fromarray(frame_rgb)
-
-                    # Resize for consistent hashing
-                    pil_image = pil_image.resize((256, 256), Image.Resampling.LANCZOS)
-
-                    # Generate perceptual hash for frame
-                    frame_phash = imagehash.phash(pil_image, hash_size=DEFAULT_HASH_SIZE)
-                    frame_hashes.append(self._normalize_hash(frame_phash))
-
-                    frames_analyzed += 1
-
-                frame_count += 1
+            # Extract frames and generate hashes using helper method
+            frame_hashes, frames_analyzed = self._extract_video_frame_hashes(cap, frame_interval)
 
             # Compute average hash across all frames if we have any
             average_hash = ""
@@ -600,8 +563,8 @@ class FingerprintingService:
             if self.embeddings and normalized_content:
                 # Use actual content for embedding (truncated if too long)
                 embedding_content = (
-                    normalized_content[:8000]
-                    if len(normalized_content) > 8000
+                    normalized_content[:MAX_EMBEDDING_CONTENT_LENGTH]
+                    if len(normalized_content) > MAX_EMBEDDING_CONTENT_LENGTH
                     else normalized_content
                 )
                 openai_embedding = await self._generate_embedding(embedding_content)
@@ -701,9 +664,7 @@ class FingerprintingService:
 
             # Create temporary file for processing
             suffix = Path(object_key).suffix or ""
-            with tempfile.NamedTemporaryFile(
-                delete=False, suffix=suffix
-            ) as temp_file:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
                 temp_file_path = temp_file.name
 
             self.logger.debug(f"Downloading file to temporary location: {temp_file_path}")
@@ -711,7 +672,7 @@ class FingerprintingService:
             # Download file from S3 to temporary location
             await self.storage.download_file(object_key, file_path=temp_file_path)
 
-            self.logger.debug(f"File downloaded successfully, starting fingerprinting")
+            self.logger.debug("File downloaded successfully, starting fingerprinting")
 
             # Route to appropriate fingerprinting method
             fingerprint_data: dict[str, Any] = {}
@@ -724,7 +685,7 @@ class FingerprintingService:
                 fingerprint_data = await self.fingerprint_video(temp_file_path)
             elif file_type_lower == "text":
                 # For text, read content from file
-                with open(temp_file_path, encoding="utf-8", errors="replace") as f:
+                with Path(temp_file_path).open(encoding="utf-8", errors="replace") as f:
                     content = f.read()
                 fingerprint_data = await self.fingerprint_text(content)
 
@@ -771,7 +732,7 @@ class FingerprintingService:
             )
 
             # Build response
-            result = {
+            return {
                 "fingerprint_id": fingerprint_id,
                 "asset_id": asset_id,
                 "user_id": user_id,
@@ -780,8 +741,6 @@ class FingerprintingService:
                 "processing_duration": processing_duration,
                 **fingerprint_data,
             }
-
-            return result
 
         except UnsupportedFileTypeError:
             # Re-raise without wrapping
@@ -810,8 +769,8 @@ class FingerprintingService:
                 await fingerprints_collection.insert_one(error_doc)
                 self.logger.warning(f"Stored failed fingerprint record: {fingerprint_id}")
 
-            except Exception as db_error:
-                self.logger.exception(f"Failed to store error record: {db_error}")
+            except Exception:
+                self.logger.exception("Failed to store error record")
 
             raise FingerprintGenerationError(
                 f"Fingerprint generation failed for asset {asset_id}: {error_msg}"
@@ -925,9 +884,7 @@ class FingerprintingService:
         raise NotImplementedError("Embedding drift analysis will be implemented in Phase 2")
 
     # TODO Phase 2: Apply similarity-law thresholds for legal determination
-    async def apply_similarity_thresholds(
-        self, similarity_score: float
-    ) -> dict[str, Any]:
+    async def apply_similarity_thresholds(self, similarity_score: float) -> dict[str, Any]:
         """
         Apply legal similarity thresholds to determine copyright infringement status.
 
@@ -963,7 +920,7 @@ class FingerprintingService:
     async def generate_legal_export(
         self,
         asset_id: str,
-        detection_results: dict[str, Any],
+        _detection_results: dict[str, Any],  # Underscore prefix: Unused in Phase 1 stub
     ) -> bytes:
         """
         Generate legal documentation package for court submission.
@@ -995,6 +952,56 @@ class FingerprintingService:
     # ============================================================================
     # Helper Methods
     # ============================================================================
+
+    def _extract_video_frame_hashes(
+        self,
+        cap: cv2.VideoCapture,
+        frame_interval: int,
+    ) -> tuple[list[str], int]:
+        """
+        Extract frame hashes from video capture at specified intervals.
+
+        Args:
+            cap: OpenCV VideoCapture object
+            frame_interval: Number of frames between samples
+
+        Returns:
+            Tuple of (list of frame hash strings, number of frames analyzed)
+        """
+        frame_hashes: list[str] = []
+        frame_count = 0
+        frames_analyzed = 0
+
+        while True:
+            # Limit maximum frames to analyze
+            if frames_analyzed >= MAX_VIDEO_FRAMES:
+                self.logger.info(f"Reached maximum frame limit ({MAX_VIDEO_FRAMES})")
+                break
+
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            # Only process frames at the sampling interval
+            if frame_count % frame_interval == 0:
+                # Convert BGR (OpenCV) to RGB (PIL)
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                # Convert to PIL Image for hashing
+                pil_image = Image.fromarray(frame_rgb)
+
+                # Resize for consistent hashing
+                pil_image = pil_image.resize((256, 256), Image.Resampling.LANCZOS)
+
+                # Generate perceptual hash for frame
+                frame_phash = imagehash.phash(pil_image, hash_size=DEFAULT_HASH_SIZE)
+                frame_hashes.append(self._normalize_hash(frame_phash))
+
+                frames_analyzed += 1
+
+            frame_count += 1
+
+        return frame_hashes, frames_analyzed
 
     def _normalize_hash(self, hash_obj: imagehash.ImageHash) -> str:
         """
@@ -1091,9 +1098,7 @@ async def process_image(file_path: str, openai_api_key: str | None = None) -> di
 
     if openai_api_key:
         try:
-            service.embeddings = OpenAIEmbeddings(
-                api_key=SecretStr(openai_api_key)
-            )
+            service.embeddings = OpenAIEmbeddings(api_key=SecretStr(openai_api_key))
         except Exception:
             service.embeddings = None
 
@@ -1126,9 +1131,7 @@ async def process_audio(file_path: str, openai_api_key: str | None = None) -> di
 
     if openai_api_key:
         try:
-            service.embeddings = OpenAIEmbeddings(
-                api_key=SecretStr(openai_api_key)
-            )
+            service.embeddings = OpenAIEmbeddings(api_key=SecretStr(openai_api_key))
         except Exception:
             service.embeddings = None
 
@@ -1161,9 +1164,7 @@ async def process_video(file_path: str, openai_api_key: str | None = None) -> di
 
     if openai_api_key:
         try:
-            service.embeddings = OpenAIEmbeddings(
-                api_key=SecretStr(openai_api_key)
-            )
+            service.embeddings = OpenAIEmbeddings(api_key=SecretStr(openai_api_key))
         except Exception:
             service.embeddings = None
 
@@ -1193,9 +1194,7 @@ async def process_text(content: str, openai_api_key: str | None = None) -> dict[
 
     if openai_api_key:
         try:
-            service.embeddings = OpenAIEmbeddings(
-                api_key=SecretStr(openai_api_key)
-            )
+            service.embeddings = OpenAIEmbeddings(api_key=SecretStr(openai_api_key))
         except Exception:
             service.embeddings = None
 
@@ -1204,12 +1203,12 @@ async def process_text(content: str, openai_api_key: str | None = None) -> dict[
 
 # Export all public classes and functions
 __all__ = [
+    "FingerprintGenerationError",
     "FingerprintingService",
     "FingerprintingServiceError",
-    "FingerprintGenerationError",
     "UnsupportedFileTypeError",
-    "process_image",
     "process_audio",
-    "process_video",
+    "process_image",
     "process_text",
+    "process_video",
 ]

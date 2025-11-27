@@ -6,8 +6,8 @@ creator compensation based on their content's contribution to AI model training.
 
 The calculation follows the exact formula specified in the Agent Action Plan:
 
-    AI Touch Value™ = ModelEarnings × (TrainingContributionScore/100)
-                      × (UsageExposureScore/100) × EquityFactor
+    AI Touch Value™ = ModelEarnings * (TrainingContributionScore/100)
+                      * (UsageExposureScore/100) * EquityFactor
 
 Where:
     - ModelEarnings: Total earnings from the AI model in USD (≥ 0)
@@ -38,20 +38,24 @@ Notes:
     - The equity factor is immutable at 0.25 (25%)
 """
 
-from datetime import datetime, UTC
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Any, Dict, List, Optional
-
 import logging
+import math
+
+from datetime import UTC, datetime
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.analytics import AITouchValueCalculation
 from app.core.database import get_db_client
+from app.models.analytics import AITouchValueCalculation
 
 
 # Configure module logger for structured logging
 logger = logging.getLogger(__name__)
+
+# Maximum value for contribution and exposure scores (0-100 range)
+MAX_SCORE = 100
 
 
 class AIValueInput(BaseModel):
@@ -79,21 +83,13 @@ class AIValueInput(BaseModel):
     """
 
     model_earnings: float = Field(
-        ...,
-        ge=0,
-        description="Model earnings in dollars, must be non-negative"
+        ..., ge=0, description="Model earnings in dollars, must be non-negative"
     )
     training_contribution_score: float = Field(
-        ...,
-        ge=0,
-        le=100,
-        description="Training contribution score from 0-100"
+        ..., ge=0, le=100, description="Training contribution score from 0-100"
     )
     usage_exposure_score: float = Field(
-        ...,
-        ge=0,
-        le=100,
-        description="Usage exposure score from 0-100"
+        ..., ge=0, le=100, description="Usage exposure score from 0-100"
     )
 
     @field_validator("model_earnings", mode="before")
@@ -117,9 +113,7 @@ class AIValueInput(BaseModel):
         try:
             earnings = float(value)
         except (TypeError, ValueError) as e:
-            raise ValueError(
-                f"Model earnings must be a number, got {type(value).__name__}"
-            ) from e
+            raise ValueError(f"Model earnings must be a number, got {type(value).__name__}") from e
 
         if earnings < 0:
             raise ValueError("Model earnings must be non-negative")
@@ -151,9 +145,9 @@ class AIValueInput(BaseModel):
                 f"Training contribution score must be a number, got {type(value).__name__}"
             ) from e
 
-        if score < 0 or score > 100:
+        if score < 0 or score > MAX_SCORE:
             raise ValueError(
-                f"Training contribution score must be between 0 and 100, got {score}"
+                f"Training contribution score must be between 0 and {MAX_SCORE}, got {score}"
             )
 
         return score
@@ -183,10 +177,8 @@ class AIValueInput(BaseModel):
                 f"Usage exposure score must be a number, got {type(value).__name__}"
             ) from e
 
-        if score < 0 or score > 100:
-            raise ValueError(
-                f"Usage exposure score must be between 0 and 100, got {score}"
-            )
+        if score < 0 or score > MAX_SCORE:
+            raise ValueError(f"Usage exposure score must be between 0 and {MAX_SCORE}, got {score}")
 
         return score
 
@@ -213,25 +205,11 @@ class CreatorMetrics(BaseModel):
         ... )
     """
 
-    followers: int = Field(
-        ...,
-        ge=0,
-        description="Total follower count across platforms"
-    )
-    content_hours: float = Field(
-        ...,
-        ge=0,
-        description="Total hours of content created"
-    )
-    views: int = Field(
-        ...,
-        ge=0,
-        description="Total view count for creator's content"
-    )
+    followers: int = Field(..., ge=0, description="Total follower count across platforms")
+    content_hours: float = Field(..., ge=0, description="Total hours of content created")
+    views: int = Field(..., ge=0, description="Total view count for creator's content")
     platform: str = Field(
-        ...,
-        min_length=1,
-        description="Primary platform name (e.g., youtube, tiktok, instagram)"
+        ..., min_length=1, description="Primary platform name (e.g., youtube, tiktok, instagram)"
     )
 
     @field_validator("platform", mode="before")
@@ -247,13 +225,14 @@ class CreatorMetrics(BaseModel):
             str: Normalized lowercase platform name
 
         Raises:
-            ValueError: If platform is empty or not a string
+            ValueError: If platform is empty
+            TypeError: If platform is not a string
         """
         if value is None:
             raise ValueError("Platform is required")
 
         if not isinstance(value, str):
-            raise ValueError(f"Platform must be a string, got {type(value).__name__}")
+            raise TypeError(f"Platform must be a string, got {type(value).__name__}")
 
         normalized = value.strip().lower()
         if not normalized:
@@ -271,8 +250,8 @@ class AIValueService:
 
     The calculation implements the exact formula from Agent Action Plan section 0.3:
 
-        AI Touch Value™ = ModelEarnings × (TrainingContributionScore/100)
-                          × (UsageExposureScore/100) × 0.25
+        AI Touch Value™ = ModelEarnings * (TrainingContributionScore/100)
+                          * (UsageExposureScore/100) * 0.25
 
     Key Features:
         - Strict input validation (model_earnings ≥ 0, scores 0-100)
@@ -309,25 +288,23 @@ class AIValueService:
         Sets up logging for operational tracking and calculation auditing.
         """
         self.logger = logging.getLogger(__name__)
-        self.logger.info(
-            f"AIValueService initialized with EQUITY_FACTOR={self.EQUITY_FACTOR}"
-        )
+        self.logger.info(f"AIValueService initialized with EQUITY_FACTOR={self.EQUITY_FACTOR}")
 
     async def calculate_ai_touch_value(
         self,
         model_earnings: float,
         contribution_score: float,
         exposure_score: float,
-        user_id: Optional[str] = None,
-        asset_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        user_id: str | None = None,
+        asset_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Calculate AI Touch Value™ using the exact formula.
 
         Implements the mandatory formula from Agent Action Plan section 0.3:
 
-            AI Touch Value™ = ModelEarnings × (TrainingContributionScore/100)
-                              × (UsageExposureScore/100) × 0.25
+            AI Touch Value™ = ModelEarnings * (TrainingContributionScore/100)
+                              * (UsageExposureScore/100) * 0.25
 
         Args:
             model_earnings: AI model earnings in USD (must be ≥ 0)
@@ -370,25 +347,23 @@ class AIValueService:
                 training_contribution_score=contribution_score,
                 usage_exposure_score=exposure_score,
             )
-        except ValueError as e:
-            self.logger.error(f"Input validation failed: {e}")
+        except ValueError:
+            self.logger.exception("Input validation failed")
             raise
 
         # Calculate using Decimal for financial precision
         earnings_decimal = Decimal(str(validated_input.model_earnings))
-        contribution_factor = Decimal(str(validated_input.training_contribution_score)) / Decimal("100")
+        contribution_factor = Decimal(str(validated_input.training_contribution_score)) / Decimal(
+            "100"
+        )
         exposure_factor = Decimal(str(validated_input.usage_exposure_score)) / Decimal("100")
         equity_decimal = Decimal(str(self.EQUITY_FACTOR))
 
         # Apply the exact formula
-        calculated_value = (
-            earnings_decimal * contribution_factor * exposure_factor * equity_decimal
-        )
+        calculated_value = earnings_decimal * contribution_factor * exposure_factor * equity_decimal
 
         # Round to 2 decimal places for currency precision
-        calculated_value = calculated_value.quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
+        calculated_value = calculated_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         # Get formula breakdown
         breakdown = self.get_formula_breakdown(
@@ -423,18 +398,12 @@ class AIValueService:
                 )
                 calculation_id = str(insert_result.inserted_id)
 
-                self.logger.info(
-                    f"Stored calculation record with ID: {calculation_id}"
-                )
+                self.logger.info(f"Stored calculation record with ID: {calculation_id}")
             except RuntimeError as e:
                 # Database not initialized - log warning but continue
-                self.logger.warning(
-                    f"Could not store calculation in database: {e}"
-                )
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to store calculation in database: {e}"
-                )
+                self.logger.warning(f"Could not store calculation in database: {e}")
+            except Exception:
+                self.logger.exception("Failed to store calculation in database")
 
         result = {
             "calculated_value": str(calculated_value),
@@ -449,15 +418,11 @@ class AIValueService:
             "asset_id": asset_id,
         }
 
-        self.logger.info(
-            f"AI Touch Value™ calculated: ${calculated_value}"
-        )
+        self.logger.info(f"AI Touch Value™ calculated: ${calculated_value}")
 
         return result
 
-    async def predict_contribution_score(
-        self, creator_metrics: CreatorMetrics
-    ) -> float:
+    async def predict_contribution_score(self, creator_metrics: CreatorMetrics) -> float:
         """
         Predict training contribution score from creator metrics.
 
@@ -478,9 +443,7 @@ class AIValueService:
             - content_hours: More content = higher training contribution
             - platform: Some platforms more likely in training data
         """
-        self.logger.info(
-            f"Predicting contribution score for platform={creator_metrics.platform}"
-        )
+        self.logger.info(f"Predicting contribution score for platform={creator_metrics.platform}")
 
         base_score = 0.0
 
@@ -492,21 +455,21 @@ class AIValueService:
         # Platform factor (up to 30 points)
         # Different platforms have different likelihoods of being in training data
         platform_scores = {
-            "youtube": 30.0,      # High: Major source for video/text training
-            "twitter": 28.0,     # High: Common text training source
-            "x": 28.0,           # Same as Twitter
-            "reddit": 27.0,      # High: Common in text datasets
-            "github": 30.0,      # High: Major code training source
-            "wikipedia": 30.0,   # High: Standard training data
-            "medium": 25.0,      # Medium-High: Blog content
-            "instagram": 20.0,   # Medium: Image/caption training
-            "tiktok": 22.0,      # Medium: Growing video source
-            "vimeo": 18.0,       # Medium: Video content
-            "spotify": 15.0,     # Lower: Audio content
+            "youtube": 30.0,  # High: Major source for video/text training
+            "twitter": 28.0,  # High: Common text training source
+            "x": 28.0,  # Same as Twitter
+            "reddit": 27.0,  # High: Common in text datasets
+            "github": 30.0,  # High: Major code training source
+            "wikipedia": 30.0,  # High: Standard training data
+            "medium": 25.0,  # Medium-High: Blog content
+            "instagram": 20.0,  # Medium: Image/caption training
+            "tiktok": 22.0,  # Medium: Growing video source
+            "vimeo": 18.0,  # Medium: Video content
+            "spotify": 15.0,  # Lower: Audio content
             "soundcloud": 14.0,  # Lower: Audio content
-            "twitch": 16.0,      # Lower: Streaming content
-            "pinterest": 12.0,   # Lower: Image curation
-            "linkedin": 15.0,    # Medium-Low: Professional content
+            "twitch": 16.0,  # Lower: Streaming content
+            "pinterest": 12.0,  # Lower: Image curation
+            "linkedin": 15.0,  # Medium-Low: Professional content
         }
         platform_score = platform_scores.get(creator_metrics.platform, 15.0)
         base_score += platform_score
@@ -514,8 +477,8 @@ class AIValueService:
         # Engagement factor based on content ratio (up to 20 points)
         # Higher content hours per follower suggests dedicated creator
         if creator_metrics.followers > 0:
-            hours_per_1k_followers = (
-                creator_metrics.content_hours / (creator_metrics.followers / 1000.0)
+            hours_per_1k_followers = creator_metrics.content_hours / (
+                creator_metrics.followers / 1000.0
             )
             engagement_factor = min(hours_per_1k_followers / 10.0, 1.0) * 20.0
             base_score += engagement_factor
@@ -526,15 +489,11 @@ class AIValueService:
         # Ensure score is within 0-100 range
         final_score = max(0.0, min(100.0, base_score))
 
-        self.logger.info(
-            f"Predicted contribution score: {final_score:.2f}"
-        )
+        self.logger.info(f"Predicted contribution score: {final_score:.2f}")
 
         return round(final_score, 2)
 
-    async def predict_exposure_score(
-        self, creator_metrics: CreatorMetrics
-    ) -> float:
+    async def predict_exposure_score(self, creator_metrics: CreatorMetrics) -> float:
         """
         Predict usage exposure score from creator metrics.
 
@@ -555,20 +514,15 @@ class AIValueService:
             - views: Higher views = more content consumption
             - platform: Platform popularity affects exposure
         """
-        self.logger.info(
-            f"Predicting exposure score for platform={creator_metrics.platform}"
-        )
+        self.logger.info(f"Predicting exposure score for platform={creator_metrics.platform}")
 
         base_score = 0.0
 
         # Follower reach factor (up to 40 points)
         # Scale: 0-1M followers maps to 0-40 points (logarithmic)
         if creator_metrics.followers > 0:
-            import math
             # Use log scale: 1K followers = 10 points, 1M = 40 points
-            follower_factor = (
-                math.log10(max(creator_metrics.followers, 1)) / 6.0
-            ) * 40.0
+            follower_factor = (math.log10(max(creator_metrics.followers, 1)) / 6.0) * 40.0
             follower_factor = min(follower_factor, 40.0)
             base_score += follower_factor
         else:
@@ -577,11 +531,8 @@ class AIValueService:
         # View engagement factor (up to 40 points)
         # Scale: 0-10M views maps to 0-40 points (logarithmic)
         if creator_metrics.views > 0:
-            import math
             # Use log scale: 10K views = 10 points, 10M = 40 points
-            view_factor = (
-                math.log10(max(creator_metrics.views, 1)) / 7.0
-            ) * 40.0
+            view_factor = (math.log10(max(creator_metrics.views, 1)) / 7.0) * 40.0
             view_factor = min(view_factor, 40.0)
             base_score += view_factor
         else:
@@ -590,21 +541,21 @@ class AIValueService:
         # Platform popularity factor (up to 20 points)
         # More popular platforms have higher exposure potential
         platform_exposure = {
-            "youtube": 20.0,     # Highest: Massive global reach
-            "tiktok": 19.0,      # Very High: Viral potential
-            "instagram": 18.0,   # High: Visual platform
-            "twitter": 17.0,     # High: News/viral content
-            "x": 17.0,           # Same as Twitter
-            "facebook": 16.0,    # High: Large user base
-            "reddit": 15.0,      # Medium-High: Engaged communities
-            "spotify": 14.0,     # Medium: Audio platform
-            "twitch": 14.0,      # Medium: Live streaming
-            "linkedin": 12.0,    # Medium: Professional network
-            "github": 13.0,      # Medium: Developer community
-            "medium": 11.0,      # Medium: Blog platform
-            "vimeo": 10.0,       # Lower: Niche video
-            "soundcloud": 9.0,   # Lower: Audio niche
-            "pinterest": 10.0,   # Medium-Low: Visual discovery
+            "youtube": 20.0,  # Highest: Massive global reach
+            "tiktok": 19.0,  # Very High: Viral potential
+            "instagram": 18.0,  # High: Visual platform
+            "twitter": 17.0,  # High: News/viral content
+            "x": 17.0,  # Same as Twitter
+            "facebook": 16.0,  # High: Large user base
+            "reddit": 15.0,  # Medium-High: Engaged communities
+            "spotify": 14.0,  # Medium: Audio platform
+            "twitch": 14.0,  # Medium: Live streaming
+            "linkedin": 12.0,  # Medium: Professional network
+            "github": 13.0,  # Medium: Developer community
+            "medium": 11.0,  # Medium: Blog platform
+            "vimeo": 10.0,  # Lower: Niche video
+            "soundcloud": 9.0,  # Lower: Audio niche
+            "pinterest": 10.0,  # Medium-Low: Visual discovery
         }
         platform_score = platform_exposure.get(creator_metrics.platform, 10.0)
         base_score += platform_score
@@ -612,9 +563,7 @@ class AIValueService:
         # Ensure score is within 0-100 range
         final_score = max(0.0, min(100.0, base_score))
 
-        self.logger.info(
-            f"Predicted exposure score: {final_score:.2f}"
-        )
+        self.logger.info(f"Predicted exposure score: {final_score:.2f}")
 
         return round(final_score, 2)
 
@@ -622,9 +571,9 @@ class AIValueService:
         self,
         model_earnings: float,
         creator_metrics: CreatorMetrics,
-        user_id: Optional[str] = None,
-        asset_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        user_id: str | None = None,
+        asset_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Predict AI Touch Value™ from creator metrics.
 
@@ -691,9 +640,7 @@ class AIValueService:
             "timestamp": calculation_result["timestamp"],
         }
 
-        self.logger.info(
-            f"Predicted AI Touch Value™: ${calculation_result['calculated_value']}"
-        )
+        self.logger.info(f"Predicted AI Touch Value™: ${calculation_result['calculated_value']}")
 
         return result
 
@@ -701,7 +648,7 @@ class AIValueService:
         self,
         asset_id: str,
         limit: int = 10,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Retrieve historical AI Touch Value™ calculations for an asset.
 
@@ -731,34 +678,36 @@ class AIValueService:
             >>> len(history)
             5
         """
-        self.logger.info(
-            f"Retrieving calculation history for asset_id={asset_id}, limit={limit}"
-        )
+        self.logger.info(f"Retrieving calculation history for asset_id={asset_id}, limit={limit}")
 
         try:
             db_client = get_db_client()
             analytics_collection = db_client.get_analytics_collection()
 
             # Query calculations sorted by created_at descending
-            cursor = analytics_collection.find(
-                {"asset_id": asset_id}
-            ).sort("created_at", -1).limit(limit)
+            cursor = (
+                analytics_collection.find({"asset_id": asset_id})
+                .sort("created_at", -1)
+                .limit(limit)
+            )
 
             records = []
             async for doc in cursor:
                 # Convert MongoDB document to dictionary
                 record = AITouchValueCalculation.from_mongodb_dict(doc)
-                records.append({
-                    "id": record.id,
-                    "user_id": record.user_id,
-                    "asset_id": record.asset_id,
-                    "model_earnings": str(record.model_earnings),
-                    "contribution_score": record.training_contribution_score,
-                    "exposure_score": record.usage_exposure_score,
-                    "calculated_value": str(record.calculated_value),
-                    "equity_factor": record.equity_factor,
-                    "timestamp": record.created_at.isoformat(),
-                })
+                records.append(
+                    {
+                        "id": record.id,
+                        "user_id": record.user_id,
+                        "asset_id": record.asset_id,
+                        "model_earnings": str(record.model_earnings),
+                        "contribution_score": record.training_contribution_score,
+                        "exposure_score": record.usage_exposure_score,
+                        "calculated_value": str(record.calculated_value),
+                        "equity_factor": record.equity_factor,
+                        "timestamp": record.created_at.isoformat(),
+                    }
+                )
 
             self.logger.info(
                 f"Retrieved {len(records)} calculation records for asset_id={asset_id}"
@@ -766,11 +715,11 @@ class AIValueService:
 
             return records
 
-        except RuntimeError as e:
-            self.logger.error(f"Database error retrieving calculation history: {e}")
+        except RuntimeError:
+            self.logger.exception("Database error retrieving calculation history")
             raise
-        except Exception as e:
-            self.logger.error(f"Error retrieving calculation history: {e}")
+        except Exception:
+            self.logger.exception("Error retrieving calculation history")
             raise
 
     async def project_value(
@@ -780,7 +729,7 @@ class AIValueService:
         exposure_score: float,
         growth_rate: float = 0.1,
         periods: int = 12,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Project AI Touch Value™ over future time periods.
 
@@ -829,7 +778,9 @@ class AIValueService:
         current_earnings = Decimal(str(validated_input.model_earnings))
 
         # Calculate factors once for efficiency
-        contribution_factor = Decimal(str(validated_input.training_contribution_score)) / Decimal("100")
+        contribution_factor = Decimal(str(validated_input.training_contribution_score)) / Decimal(
+            "100"
+        )
         exposure_factor = Decimal(str(validated_input.usage_exposure_score)) / Decimal("100")
         equity_decimal = Decimal(str(self.EQUITY_FACTOR))
         growth_decimal = Decimal(str(1 + growth_rate))
@@ -842,19 +793,21 @@ class AIValueService:
 
             cumulative_value += period_value
 
-            projections.append({
-                "period": period,
-                "projected_earnings": str(current_earnings.quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )),
-                "projected_value": str(period_value),
-                "cumulative_value": str(cumulative_value.quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )),
-                "contribution_score": validated_input.training_contribution_score,
-                "exposure_score": validated_input.usage_exposure_score,
-                "equity_factor": self.EQUITY_FACTOR,
-            })
+            projections.append(
+                {
+                    "period": period,
+                    "projected_earnings": str(
+                        current_earnings.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    ),
+                    "projected_value": str(period_value),
+                    "cumulative_value": str(
+                        cumulative_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    ),
+                    "contribution_score": validated_input.training_contribution_score,
+                    "exposure_score": validated_input.usage_exposure_score,
+                    "equity_factor": self.EQUITY_FACTOR,
+                }
+            )
 
             # Apply growth for next period
             current_earnings = (current_earnings * growth_decimal).quantize(
@@ -873,7 +826,7 @@ class AIValueService:
         model_earnings: float,
         contribution_score: float,
         exposure_score: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get detailed breakdown of AI Touch Value™ calculation.
 
@@ -899,7 +852,7 @@ class AIValueService:
             ...     exposure_score=60.0
             ... )
             >>> breakdown['formula']
-            'AI Touch Value™ = ModelEarnings × (ContributionScore/100) × (ExposureScore/100) × EquityFactor'
+            'AI Touch Value™ = ModelEarnings * (ContributionScore/100) * (ExposureScore/100) * EquityFactor'
         """
         # Convert to Decimal for precise calculations
         earnings_decimal = Decimal(str(model_earnings))
@@ -910,19 +863,17 @@ class AIValueService:
         # Calculate intermediate values
         step1 = earnings_decimal * contribution_factor
         step2 = step1 * exposure_factor
-        final_value = (step2 * equity_decimal).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
+        final_value = (step2 * equity_decimal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         # Calculate combined multiplier
-        combined_multiplier = (
-            contribution_factor * exposure_factor * equity_decimal
-        ).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        combined_multiplier = (contribution_factor * exposure_factor * equity_decimal).quantize(
+            Decimal("0.000001"), rounding=ROUND_HALF_UP
+        )
 
         return {
             "formula": (
-                "AI Touch Value™ = ModelEarnings × (ContributionScore/100) "
-                "× (ExposureScore/100) × EquityFactor"
+                "AI Touch Value™ = ModelEarnings * (ContributionScore/100) "
+                "* (ExposureScore/100) * EquityFactor"
             ),
             "inputs": {
                 "model_earnings": str(earnings_decimal),
@@ -931,16 +882,14 @@ class AIValueService:
                 "equity_factor": self.EQUITY_FACTOR,
             },
             "intermediate_values": {
-                "step1_earnings_x_contribution": str(step1.quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )),
-                "step1_description": f"${model_earnings} × ({contribution_score}/100)",
-                "step2_x_exposure": str(step2.quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )),
-                "step2_description": f"Step1 × ({exposure_score}/100)",
+                "step1_earnings_x_contribution": str(
+                    step1.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                ),
+                "step1_description": f"${model_earnings} * ({contribution_score}/100)",
+                "step2_x_exposure": str(step2.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                "step2_description": f"Step1 * ({exposure_score}/100)",
                 "step3_x_equity": str(final_value),
-                "step3_description": f"Step2 × {self.EQUITY_FACTOR}",
+                "step3_description": f"Step2 * {self.EQUITY_FACTOR}",
             },
             "factors": {
                 "contribution_factor": float(contribution_factor),
@@ -962,4 +911,4 @@ class AIValueService:
 
 
 # Export all public classes
-__all__ = ["AIValueService", "AIValueInput", "CreatorMetrics"]
+__all__ = ["AIValueInput", "AIValueService", "CreatorMetrics"]
