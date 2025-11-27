@@ -414,7 +414,7 @@ export async function directUpload(
 
   try {
     // Use apiClient with progress tracking
-    const asset = await apiClient.post<Asset>(
+    const response = await apiClient.post<Asset>(
       `/api/v1/upload/${type}`,
       formData,
       {
@@ -429,7 +429,7 @@ export async function directUpload(
       }
     );
 
-    return asset;
+    return response.data;
   } catch (error) {
     if (error instanceof UploadError) {
       throw error;
@@ -500,7 +500,7 @@ export async function presignedUpload(
       }
     );
 
-    const { upload_url, asset_id } = presignedResponse;
+    const { upload_url, asset_id } = presignedResponse.data;
 
     if (!upload_url) {
       throw new UploadError(
@@ -529,7 +529,7 @@ export async function presignedUpload(
     });
 
     // Step 3: Confirm upload with backend
-    const asset = await apiClient.post<Asset>('/api/v1/upload/confirmation', {
+    const response = await apiClient.post<Asset>('/api/v1/upload/confirmation', {
       asset_id,
       file_name: file.name,
       file_type: fileType,
@@ -545,7 +545,7 @@ export async function presignedUpload(
       });
     }
 
-    return asset;
+    return response.data;
   } catch (error) {
     if (error instanceof UploadError) {
       throw error;
@@ -640,12 +640,12 @@ export async function uploadUrl(url: string, type: UrlType): Promise<Asset> {
   }
 
   try {
-    const asset = await apiClient.post<Asset>('/api/v1/upload/url', {
+    const response = await apiClient.post<Asset>('/api/v1/upload/url', {
       url,
       type,
     });
 
-    return asset;
+    return response.data;
   } catch (error) {
     if (error instanceof UploadError) {
       throw error;
@@ -785,7 +785,7 @@ export async function initiateMultipartUpload(
       }
     );
 
-    return response;
+    return response.data;
   } catch (error) {
     if (error instanceof UploadError) {
       throw error;
@@ -920,7 +920,7 @@ export async function completeMultipartUpload(
   const sortedParts = [...parts].sort((a, b) => a.part_number - b.part_number);
 
   try {
-    const asset = await apiClient.post<Asset>(
+    const response = await apiClient.post<Asset>(
       '/api/v1/upload/multipart/complete',
       {
         upload_id: uploadId,
@@ -929,7 +929,7 @@ export async function completeMultipartUpload(
       }
     );
 
-    return asset;
+    return response.data;
   } catch (error) {
     if (error instanceof UploadError) {
       throw error;
@@ -1003,9 +1003,19 @@ export async function resumableUpload(
       const start = i * MULTIPART_CHUNK_SIZE;
       const end = Math.min(start + MULTIPART_CHUNK_SIZE, file.size);
       const chunk = file.slice(start, end);
+      const partUrl = part_urls[i];
+
+      // Safety check - should never happen since we're iterating within bounds
+      if (!partUrl) {
+        throw new UploadError(
+          `Missing presigned URL for part ${partNumber}`,
+          'MISSING_PART_URL',
+          500
+        );
+      }
 
       const etag = await uploadPart(
-        part_urls[i],
+        partUrl,
         chunk,
         partNumber,
         (partProgress) => {

@@ -276,8 +276,7 @@ export async function login(credentials: LoginCredentials): Promise<LoginRespons
     // Store the JWT token securely in localStorage
     setToken(response.token);
 
-    // Log successful authentication (without sensitive data)
-    console.info('Authentication successful for user:', response.user.email);
+    // Authentication successful - token stored securely
 
     return {
       user: response.user,
@@ -343,7 +342,6 @@ export async function logout(): Promise<void> {
 
   // If there was no token, user was already logged out
   if (!currentToken) {
-    console.info('User was already logged out');
     return;
   }
 
@@ -352,7 +350,7 @@ export async function logout(): Promise<void> {
     // The backend will invalidate the session and clear any server-side cache
     await apiClient.post(AUTH_ENDPOINTS.LOGOUT);
 
-    console.info('Successfully logged out and cleared server session');
+    // Logout successful - server session cleared
   } catch (error) {
     // Log the error but don't throw - local logout was successful
     // This handles cases where the token was already expired or invalid
@@ -507,7 +505,7 @@ export async function refreshToken(): Promise<string> {
     // Store the new token
     setToken(response.token);
 
-    console.info('Token refreshed successfully, new expiration:', response.expiresIn, 'seconds');
+    // Token refresh successful
 
     return response.token;
   } catch (error) {
