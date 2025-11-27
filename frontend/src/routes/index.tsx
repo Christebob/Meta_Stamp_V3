@@ -100,6 +100,7 @@ const NotFound = lazy(() => import('@/pages/NotFound'));
  *
  * @returns {JSX.Element} Loading spinner UI
  */
+// eslint-disable-next-line react-refresh/only-export-components
 function LoadingFallback(): JSX.Element {
   return (
     <div
