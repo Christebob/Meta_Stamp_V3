@@ -45,16 +45,13 @@ BEARER_TOKEN_PARTS = 2
 
 # Password hashing context using bcrypt with minimum 12 rounds
 # per Agent Action Plan section 0.10 security requirements
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__rounds=12
-)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
 
 # ==============================================================================
 # PASSWORD HASHING FUNCTIONS
 # ==============================================================================
+
 
 def hash_password(password: str) -> str:
     """
@@ -113,11 +110,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # JWT TOKEN GENERATION AND VALIDATION
 # ==============================================================================
 
+
 def generate_jwt_token(
     data: dict[str, Any],
     secret_key: str,
     expires_delta: timedelta | None = None,
-    algorithm: str = "HS256"
+    algorithm: str = "HS256",
 ) -> str:
     """
     Generate a JWT token with the provided data and expiration.
@@ -162,21 +160,20 @@ def generate_jwt_token(
         expire = datetime.now(UTC) + timedelta(hours=24)
 
     # Add standard JWT claims
-    payload.update({
-        "exp": expire,
-        "iat": datetime.now(UTC),
-        "nbf": datetime.now(UTC)  # Not valid before current time
-    })
+    payload.update(
+        {
+            "exp": expire,
+            "iat": datetime.now(UTC),
+            "nbf": datetime.now(UTC),  # Not valid before current time
+        }
+    )
 
     # Encode and return the token
     return jwt.encode(payload, secret_key, algorithm=algorithm)
 
 
-
 def validate_jwt_token(
-    token: str,
-    secret_key: str,
-    algorithm: str = "HS256"
+    token: str, secret_key: str, algorithm: str = "HS256"
 ) -> dict[str, Any] | None:
     """
     Validate and decode a JWT token.
@@ -213,10 +210,9 @@ def validate_jwt_token(
                 "verify_exp": True,
                 "verify_iat": True,
                 "verify_nbf": True,
-                "require": ["exp", "iat"]
-            }
+                "require": ["exp", "iat"],
+            },
         )
-
 
     except ExpiredSignatureError:
         logger.warning("Token validation failed: token has expired")
@@ -354,7 +350,7 @@ def _get_rsa_key_from_jwks(jwks: dict[str, Any], token: str) -> dict[str, Any] |
                     "kid": key.get("kid"),
                     "use": key.get("use"),
                     "n": key.get("n"),
-                    "e": key.get("e")
+                    "e": key.get("e"),
                 }
 
         logger.warning(f"No matching key found for kid: {token_kid}")
@@ -365,11 +361,7 @@ def _get_rsa_key_from_jwks(jwks: dict[str, Any], token: str) -> dict[str, Any] |
         return None
 
 
-def validate_auth0_token(
-    token: str,
-    auth0_domain: str,
-    api_audience: str
-) -> dict[str, Any] | None:
+def validate_auth0_token(token: str, auth0_domain: str, api_audience: str) -> dict[str, Any] | None:
     """
     Validate an Auth0 JWT token using RS256 algorithm.
 
@@ -427,8 +419,8 @@ def validate_auth0_token(
                 "verify_iat": True,
                 "verify_aud": True,
                 "verify_iss": True,
-                "require": ["exp", "iat", "aud", "iss", "sub"]
-            }
+                "require": ["exp", "iat", "aud", "iss", "sub"],
+            },
         )
 
     except ExpiredSignatureError:
@@ -449,10 +441,8 @@ def validate_auth0_token(
 # SECURE RANDOM STRING GENERATION
 # ==============================================================================
 
-def generate_secure_random(
-    length: int = 32,
-    include_punctuation: bool = False
-) -> str:
+
+def generate_secure_random(length: int = 32, include_punctuation: bool = False) -> str:
     """
     Generate a cryptographically secure random string.
 
@@ -491,6 +481,7 @@ def generate_secure_random(
 # TOKEN EXPIRATION HELPERS
 # ==============================================================================
 
+
 def create_expiration_time(hours: int = 24) -> datetime:
     """
     Create an expiration datetime for token generation.
@@ -518,6 +509,7 @@ def create_expiration_time(hours: int = 24) -> datetime:
 # ==============================================================================
 # ADDITIONAL SECURITY UTILITIES
 # ==============================================================================
+
 
 def extract_token_from_header(authorization_header: str | None) -> str | None:
     """
@@ -573,10 +565,7 @@ def is_token_expired(token: str, secret_key: str, algorithm: str = "HS256") -> b
             token,
             secret_key,
             algorithms=[algorithm],
-            options={
-                "verify_signature": True,
-                "verify_exp": False  # We'll check manually
-            }
+            options={"verify_signature": True, "verify_exp": False},  # We'll check manually
         )
 
         exp = payload.get("exp")
@@ -612,7 +601,7 @@ def generate_password_reset_token(user_id: str, secret_key: str) -> str:
         data={"sub": user_id, "purpose": "password_reset"},
         secret_key=secret_key,
         expires_delta=timedelta(hours=1),
-        algorithm="HS256"
+        algorithm="HS256",
     )
 
 

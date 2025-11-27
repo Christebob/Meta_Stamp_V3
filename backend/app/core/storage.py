@@ -19,20 +19,30 @@ per Agent Action Plan section 0.3 cloud-agnostic design requirements.
 """
 
 import logging
-from datetime import timedelta
-from typing import Any, Dict, List, Optional
+
+from typing import Any
 
 import boto3
+
 from botocore.client import Config
 from botocore.exceptions import ClientError
 
 from app.config import Settings
 
+
+# Configure module-level constants to avoid magic numbers
+MIN_PRESIGNED_EXPIRATION_SECONDS = 60
+MAX_PRESIGNED_EXPIRATION_SECONDS = 3600
+MAX_DOWNLOAD_EXPIRATION_SECONDS = 86400
+MIN_PART_NUMBER = 1
+MAX_PART_NUMBER = 10000
+
 # Configure module-level logger
 logger = logging.getLogger(__name__)
 
-# Global storage client instance for singleton pattern
-_storage_client_instance: Optional["StorageClient"] = None
+# Singleton container for storage client instance
+# Using a dict container allows modification without global statement
+_singleton_container: dict[str, "StorageClient"] = {}
 
 
 class StorageClient:
@@ -70,7 +80,7 @@ class StorageClient:
         ```
     """
 
-    def __init__(self, settings: Optional[Settings] = None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         """
         Initialize the S3 storage client with configuration from settings.
 
@@ -118,10 +128,10 @@ class StorageClient:
                     "endpoint": self.settings.s3_endpoint_url or "AWS S3 (default)",
                 },
             )
-        except ClientError as e:
-            logger.error(
+        except ClientError:
+            logger.exception(
                 "Failed to initialize S3 storage client",
-                extra={"error": str(e), "endpoint": self.settings.s3_endpoint_url},
+                extra={"endpoint": self.settings.s3_endpoint_url},
             )
             raise
 
@@ -129,7 +139,7 @@ class StorageClient:
         self,
         key: str,
         content_type: str,
-        expires_in: Optional[int] = None,
+        expires_in: int | None = None,
     ) -> str:
         """
         Generate a presigned PUT URL for direct client-to-S3 upload.
@@ -174,9 +184,10 @@ class StorageClient:
         expiration = expires_in or self.settings.presigned_url_expiration_seconds
 
         # Validate expiration time is within acceptable bounds
-        if expiration < 60 or expiration > 3600:
+        if not MIN_PRESIGNED_EXPIRATION_SECONDS <= expiration <= MAX_PRESIGNED_EXPIRATION_SECONDS:
             raise ValueError(
-                f"expires_in must be between 60 and 3600 seconds, got {expiration}"
+                f"expires_in must be between {MIN_PRESIGNED_EXPIRATION_SECONDS} and "
+                f"{MAX_PRESIGNED_EXPIRATION_SECONDS} seconds, got {expiration}"
             )
 
         try:
@@ -201,10 +212,10 @@ class StorageClient:
 
             return presigned_url
 
-        except ClientError as e:
-            logger.error(
+        except ClientError:
+            logger.exception(
                 "Failed to generate presigned upload URL",
-                extra={"key": key, "content_type": content_type, "error": str(e)},
+                extra={"key": key, "content_type": content_type},
             )
             raise
 
@@ -244,9 +255,10 @@ class StorageClient:
             ```
         """
         # Validate expiration time
-        if expires_in < 60 or expires_in > 86400:
+        if not MIN_PRESIGNED_EXPIRATION_SECONDS <= expires_in <= MAX_DOWNLOAD_EXPIRATION_SECONDS:
             raise ValueError(
-                f"expires_in must be between 60 and 86400 seconds, got {expires_in}"
+                f"expires_in must be between {MIN_PRESIGNED_EXPIRATION_SECONDS} and "
+                f"{MAX_DOWNLOAD_EXPIRATION_SECONDS} seconds, got {expires_in}"
             )
 
         try:
@@ -266,10 +278,10 @@ class StorageClient:
 
             return presigned_url
 
-        except ClientError as e:
-            logger.error(
+        except ClientError:
+            logger.exception(
                 "Failed to generate presigned download URL",
-                extra={"key": key, "error": str(e)},
+                extra={"key": key},
             )
             raise
 
@@ -324,10 +336,10 @@ class StorageClient:
 
             return upload_id
 
-        except ClientError as e:
-            logger.error(
+        except ClientError:
+            logger.exception(
                 "Failed to initiate multipart upload",
-                extra={"key": key, "content_type": content_type, "error": str(e)},
+                extra={"key": key, "content_type": content_type},
             )
             raise
 
@@ -336,7 +348,7 @@ class StorageClient:
         key: str,
         upload_id: str,
         part_number: int,
-        expires_in: Optional[int] = None,
+        expires_in: int | None = None,
     ) -> str:
         """
         Generate a presigned URL for uploading a single part of a multipart upload.
@@ -373,8 +385,11 @@ class StorageClient:
             ```
         """
         # Validate part number
-        if part_number < 1 or part_number > 10000:
-            raise ValueError(f"part_number must be between 1 and 10000, got {part_number}")
+        if not MIN_PART_NUMBER <= part_number <= MAX_PART_NUMBER:
+            raise ValueError(
+                f"part_number must be between {MIN_PART_NUMBER} and {MAX_PART_NUMBER}, "
+                f"got {part_number}"
+            )
 
         expiration = expires_in or self.settings.presigned_url_expiration_seconds
 
@@ -402,14 +417,13 @@ class StorageClient:
 
             return presigned_url
 
-        except ClientError as e:
-            logger.error(
+        except ClientError:
+            logger.exception(
                 "Failed to generate presigned part upload URL",
                 extra={
                     "key": key,
                     "upload_id": upload_id,
                     "part_number": part_number,
-                    "error": str(e),
                 },
             )
             raise
@@ -418,7 +432,7 @@ class StorageClient:
         self,
         key: str,
         upload_id: str,
-        parts: List[Dict[str, Any]],
+        parts: list[dict[str, Any]],
     ) -> bool:
         """
         Complete a multipart upload by assembling all uploaded parts.
@@ -465,9 +479,7 @@ class StorageClient:
         # Validate parts structure
         for part in parts:
             if "PartNumber" not in part or "ETag" not in part:
-                raise ValueError(
-                    "Each part must contain 'PartNumber' and 'ETag' keys"
-                )
+                raise ValueError("Each part must contain 'PartNumber' and 'ETag' keys")
 
         try:
             self.s3_client.complete_multipart_upload(
@@ -488,14 +500,13 @@ class StorageClient:
 
             return True
 
-        except ClientError as e:
-            logger.error(
+        except ClientError:
+            logger.exception(
                 "Failed to complete multipart upload",
                 extra={
                     "key": key,
                     "upload_id": upload_id,
                     "parts_count": len(parts),
-                    "error": str(e),
                 },
             )
             raise
@@ -546,10 +557,10 @@ class StorageClient:
 
             return True
 
-        except ClientError as e:
-            logger.error(
+        except ClientError:
+            logger.exception(
                 "Failed to abort multipart upload",
-                extra={"key": key, "upload_id": upload_id, "error": str(e)},
+                extra={"key": key, "upload_id": upload_id},
             )
             raise
 
@@ -557,7 +568,7 @@ class StorageClient:
         self,
         file_path: str,
         key: str,
-        metadata: Optional[Dict[str, str]] = None,
+        metadata: dict[str, str] | None = None,
     ) -> bool:
         """
         Upload a file from the local filesystem to S3.
@@ -592,7 +603,7 @@ class StorageClient:
             )
             ```
         """
-        extra_args: Dict[str, Any] = {}
+        extra_args: dict[str, Any] = {}
         if metadata:
             extra_args["Metadata"] = metadata
 
@@ -611,10 +622,10 @@ class StorageClient:
 
             return True
 
-        except ClientError as e:
-            logger.error(
+        except ClientError:
+            logger.exception(
                 "Failed to upload file to S3",
-                extra={"file_path": file_path, "key": key, "error": str(e)},
+                extra={"file_path": file_path, "key": key},
             )
             raise
 
@@ -666,10 +677,10 @@ class StorageClient:
 
             return True
 
-        except ClientError as e:
-            logger.error(
+        except ClientError:
+            logger.exception(
                 "Failed to download file from S3",
-                extra={"key": key, "file_path": file_path, "error": str(e)},
+                extra={"key": key, "file_path": file_path},
             )
             raise
 
@@ -711,10 +722,10 @@ class StorageClient:
 
             return True
 
-        except ClientError as e:
-            logger.error(
+        except ClientError:
+            logger.exception(
                 "Failed to delete file from S3",
-                extra={"key": key, "error": str(e)},
+                extra={"key": key},
             )
             raise
 
@@ -760,7 +771,7 @@ class StorageClient:
         except ClientError as e:
             # 404 means file doesn't exist - this is expected behavior
             error_code = e.response.get("Error", {}).get("Code", "")
-            if error_code == "404" or error_code == "NoSuchKey":
+            if error_code in {"404", "NoSuchKey"}:
                 logger.debug(
                     "File does not exist in S3",
                     extra={"key": key},
@@ -768,9 +779,9 @@ class StorageClient:
                 return False
 
             # Other errors should be logged and re-raised
-            logger.error(
+            logger.exception(
                 "Failed to check file existence in S3",
-                extra={"key": key, "error": str(e)},
+                extra={"key": key},
             )
             raise
 
@@ -803,10 +814,8 @@ def get_storage_client() -> StorageClient:
         )
         ```
     """
-    global _storage_client_instance
-
-    if _storage_client_instance is None:
-        _storage_client_instance = StorageClient()
+    if "instance" not in _singleton_container:
+        _singleton_container["instance"] = StorageClient()
         logger.info("Created new StorageClient singleton instance")
 
-    return _storage_client_instance
+    return _singleton_container["instance"]
