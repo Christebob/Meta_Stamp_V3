@@ -1,0 +1,366 @@
+# =============================================================================
+# META-STAMP V3 - Git Ignore Configuration
+# =============================================================================
+# This file specifies intentionally untracked files that Git should ignore.
+# Security-sensitive files, build artifacts, and environment-specific files
+# are excluded from version control to maintain repository cleanliness and
+# prevent accidental exposure of secrets.
+# =============================================================================
+
+# =============================================================================
+# Environment Variables - SECURITY CRITICAL
+# =============================================================================
+# Never commit environment files containing secrets, API keys, or credentials
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env.*.local
+*.env
+
+# =============================================================================
+# Python Artifacts
+# =============================================================================
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# C extensions
+*.so
+
+# Distribution / packaging
+dist/
+build/
+eggs/
+*.egg
+*.egg-info/
+.eggs/
+sdist/
+wheels/
+*.whl
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Poetry
+poetry.lock
+
+# =============================================================================
+# Python Testing Artifacts
+# =============================================================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+nosetests.xml
+pytest_cache/
+
+# =============================================================================
+# Python Type Checking
+# =============================================================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# =============================================================================
+# Node.js Artifacts
+# =============================================================================
+# Dependencies
+node_modules/
+.npm/
+.pnpm-store/
+
+# npm debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# =============================================================================
+# Frontend Build Outputs
+# =============================================================================
+# Vite build output
+frontend/dist/
+frontend/build/
+
+# Parcel cache
+.parcel-cache/
+
+# Next.js
+.next/
+out/
+
+# Nuxt.js
+.nuxt/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# =============================================================================
+# Backend Build Outputs
+# =============================================================================
+backend/dist/
+backend/build/
+
+# =============================================================================
+# General Build Outputs
+# =============================================================================
+dist/
+build/
+out/
+*.build/
+
+# =============================================================================
+# IDE and Editor Files
+# =============================================================================
+# Visual Studio Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# JetBrains IDEs (PyCharm, WebStorm, IntelliJ)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*.swn
+*~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# =============================================================================
+# Operating System Files
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# macOS Thumbnails
+Icon?
+
+# macOS Folder settings
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.stackdump
+[Dd]esktop.ini
+
+# Windows shortcuts
+*.lnk
+
+# Linux
+.directory
+.Trash-*
+
+# =============================================================================
+# Log Files
+# =============================================================================
+*.log
+logs/
+*.log.*
+log/
+log.txt
+
+# =============================================================================
+# Docker
+# =============================================================================
+# Docker build context excludes (but .dockerignore files themselves are tracked)
+# Note: .dockerignore files are intentionally NOT ignored
+
+# Docker volumes (if mounted locally)
+docker-data/
+mongo-data/
+redis-data/
+minio-data/
+
+# =============================================================================
+# Database Files
+# =============================================================================
+*.sqlite
+*.sqlite3
+*.db
+*.sql.gz
+
+# MongoDB local data
+data/db/
+
+# =============================================================================
+# Storage and Uploads
+# =============================================================================
+# Local uploads directory
+uploads/
+storage/
+temp/
+tmp/
+
+# MinIO local data
+.minio/
+
+# =============================================================================
+# Secrets and Credentials
+# =============================================================================
+# Private keys
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Certificates (except public certs if needed)
+*.crt
+*.cer
+
+# Credential files
+credentials.json
+service-account.json
+*-credentials.json
+
+# AWS credentials
+.aws/
+
+# =============================================================================
+# Testing and Coverage
+# =============================================================================
+# Jest
+coverage/
+.jest/
+
+# Vitest
+.vitest/
+
+# Cypress
+cypress/videos/
+cypress/screenshots/
+
+# Playwright
+playwright-report/
+playwright/.cache/
+test-results/
+
+# =============================================================================
+# Miscellaneous
+# =============================================================================
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Temporary files
+*.tmp
+*.temp
+
+# Lock files that should not be tracked (poetry.lock is tracked for reproducibility)
+# package-lock.json is tracked for reproducibility
+
+# Profiling data
+*.prof
+
+# Documentation build output
+docs/_build/
+site/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Scrapy
+.scrapy
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Environments created by virtualenvwrapper
+.virtualenvs/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# =============================================================================
+# Project-Specific Exclusions
+# =============================================================================
+# Blitzy adhoc test files
+blitzy_adhoc_test_*
+
+# Screenshots directory (except for intentional screenshots)
+screenshots/
+
+# Temporary processing files
+*.processing
+*.partial
+
+# =============================================================================
+# END OF FILE
+# =============================================================================
