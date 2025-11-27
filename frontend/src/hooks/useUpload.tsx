@@ -86,6 +86,8 @@ export interface UseUploadReturn {
   uploadMultiple: (files: File[]) => Promise<Asset[]>;
   /** Cancel a specific upload by its ID */
   cancel: (uploadId: string) => void;
+  /** Remove a specific upload from the queue by its ID */
+  removeFromQueue: (uploadId: string) => void;
   /** Remove all completed and error uploads from the queue */
   clearCompleted: () => void;
   /** Boolean indicating if any uploads are currently in progress */
@@ -657,6 +659,7 @@ export function useUpload(): UseUploadReturn {
     upload,
     uploadMultiple,
     cancel,
+    removeFromQueue,
     clearCompleted,
     isUploading,
   };
