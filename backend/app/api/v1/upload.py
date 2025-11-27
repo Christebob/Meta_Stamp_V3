@@ -375,9 +375,7 @@ async def trigger_fingerprint_generation(
         file_type: Type of file (image, audio, video, text).
         user_id: User ID who owns the asset.
     """
-    logger.info(
-        f"Queueing fingerprint generation for asset_id={asset_id}, " f"file_type={file_type}"
-    )
+    logger.info(f"Queueing fingerprint generation for asset_id={asset_id}, file_type={file_type}")
 
     background_tasks.add_task(
         fingerprinting_service.generate_fingerprint,
@@ -1162,9 +1160,7 @@ async def get_presigned_url(
 
         expires_in = result.get("expires_in", PRESIGNED_URL_EXPIRATION_SECONDS)
 
-        logger.info(
-            f"Presigned URL generated: asset_id={result['asset_id']}, " f"expires={expiration}"
-        )
+        logger.info(f"Presigned URL generated: asset_id={result['asset_id']}, expires={expiration}")
 
         return PresignedUrlResponse(
             upload_url=result["presigned_url"],  # Service returns 'presigned_url'
