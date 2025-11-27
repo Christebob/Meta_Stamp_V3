@@ -25,6 +25,7 @@ License: Proprietary
 """
 
 import logging
+
 from datetime import UTC, datetime
 from typing import Any
 
@@ -32,23 +33,25 @@ from bson import ObjectId
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from app.config import get_settings
 from app.core.auth import get_current_user
 from app.core.database import get_db_client
-from app.models.asset import Asset, ProcessingStatus, UploadStatus
-from app.models.fingerprint import Fingerprint, FingerprintType
+from app.models.asset import ProcessingStatus, UploadStatus
 from app.models.fingerprint import ProcessingStatus as FingerprintProcessingStatus
 from app.services.fingerprinting_service import (
-    FingerprintingService,
     FingerprintGenerationError,
+    FingerprintingService,
     UnsupportedFileTypeError,
 )
 from app.services.metadata_service import MetadataService
 from app.services.storage_service import StorageService
-from app.config import get_settings
 
 
 # Configure module logger
 logger = logging.getLogger(__name__)
+
+# Constants for validation
+MONGO_OBJECTID_LENGTH = 24  # MongoDB ObjectIds are 24 character hex strings
 
 
 # =============================================================================
@@ -142,9 +145,7 @@ class SpectralDataResponse(BaseModel):
     mel_spectrogram_mean: float | None = Field(
         default=None, description="Mean of mel-spectrogram features"
     )
-    chromagram_mean: float | None = Field(
-        default=None, description="Mean of chromagram features"
-    )
+    chromagram_mean: float | None = Field(default=None, description="Mean of chromagram features")
     spectral_centroid: float | None = Field(
         default=None, description="Spectral centroid (brightness measure)"
     )
@@ -247,9 +248,7 @@ class FingerprintDetailResponse(BaseModel):
     video_metadata: dict[str, Any] | None = Field(
         default=None, description="Video-specific metadata (resolution, fps)"
     )
-    text_hash: str | None = Field(
-        default=None, description="SHA-256 hash of text content"
-    )
+    text_hash: str | None = Field(default=None, description="SHA-256 hash of text content")
     text_length: int | None = Field(
         default=None, description="Length of text content in characters"
     )
@@ -261,9 +260,7 @@ class FingerprintDetailResponse(BaseModel):
     error_message: str | None = Field(
         default=None, description="Error details if processing failed"
     )
-    created_at: datetime = Field(
-        ..., description="Timestamp when fingerprint was created (UTC)"
-    )
+    created_at: datetime = Field(..., description="Timestamp when fingerprint was created (UTC)")
     updated_at: datetime | None = Field(
         default=None, description="Timestamp when fingerprint was last modified (UTC)"
     )
@@ -421,9 +418,7 @@ async def process_fingerprint_background(
             },
         )
 
-        logger.info(
-            f"Asset {asset_id} updated with fingerprint_id={fingerprint_id}, status=ready"
-        )
+        logger.info(f"Asset {asset_id} updated with fingerprint_id={fingerprint_id}, status=ready")
 
         # TODO Phase 2: Implement AI training detection engine
         # After successful fingerprint generation, initiate AI training detection
@@ -440,7 +435,7 @@ async def process_fingerprint_background(
         # await apply_legal_thresholds(fingerprint_id)
 
     except UnsupportedFileTypeError as e:
-        logger.error(f"Unsupported file type for fingerprinting: {e}")
+        logger.exception("Unsupported file type for fingerprinting")
         await _handle_fingerprint_error(
             fingerprint_id=fingerprint_id,
             asset_id=asset_id,
@@ -448,7 +443,7 @@ async def process_fingerprint_background(
         )
 
     except FingerprintGenerationError as e:
-        logger.error(f"Fingerprint generation failed: {e}")
+        logger.exception("Fingerprint generation failed")
         await _handle_fingerprint_error(
             fingerprint_id=fingerprint_id,
             asset_id=asset_id,
@@ -456,7 +451,7 @@ async def process_fingerprint_background(
         )
 
     except Exception as e:
-        logger.exception(f"Unexpected error during fingerprint generation: {e}")
+        logger.exception("Unexpected error during fingerprint generation")
         await _handle_fingerprint_error(
             fingerprint_id=fingerprint_id,
             asset_id=asset_id,
@@ -514,8 +509,8 @@ async def _handle_fingerprint_error(
             f"Updated fingerprint {fingerprint_id} and asset {asset_id} to failed status"
         )
 
-    except Exception as update_error:
-        logger.exception(f"Failed to update error status: {update_error}")
+    except Exception:
+        logger.exception("Failed to update error status")
 
 
 # =============================================================================
@@ -530,18 +525,18 @@ async def _handle_fingerprint_error(
     summary="Generate fingerprint for asset",
     description="""
     Initiates multi-modal fingerprint generation for a creative asset.
-    
+
     The fingerprint generation is performed asynchronously in the background.
     Returns immediately with a fingerprint_id that can be used to check
     processing status via GET /{fingerprint_id}.
-    
+
     Fingerprinting includes:
     - **Images**: Perceptual hashes (pHash, aHash, dHash) resistant to modifications
     - **Audio**: Spectral analysis (mel-spectrogram, chromagram, spectral centroid)
     - **Video**: Frame-based hashing at 1-second intervals
     - **Text**: SHA-256 content hash
     - **All types**: OpenAI embeddings for semantic similarity (if configured)
-    
+
     Requirements:
     - Asset must exist and belong to the authenticated user
     - Asset must not already have an associated fingerprint
@@ -630,9 +625,7 @@ async def create_fingerprint(
     # Check if asset already has a fingerprint
     if asset.get("fingerprint_id"):
         existing_fingerprint_id = asset.get("fingerprint_id")
-        logger.info(
-            f"Asset {request.asset_id} already has fingerprint {existing_fingerprint_id}"
-        )
+        logger.info(f"Asset {request.asset_id} already has fingerprint {existing_fingerprint_id}")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Asset already has a fingerprint (ID: {existing_fingerprint_id}). "
@@ -640,9 +633,7 @@ async def create_fingerprint(
         )
 
     # Check if a fingerprint record already exists for this asset
-    existing_fingerprint = await fingerprints_collection.find_one(
-        {"asset_id": request.asset_id}
-    )
+    existing_fingerprint = await fingerprints_collection.find_one({"asset_id": request.asset_id})
     if existing_fingerprint:
         existing_id = str(existing_fingerprint.get("_id", "unknown"))
         logger.info(f"Fingerprint already exists for asset {request.asset_id}: {existing_id}")
@@ -709,9 +700,7 @@ async def create_fingerprint(
     # Insert placeholder record
     await fingerprints_collection.insert_one(fingerprint_doc)
 
-    logger.info(
-        f"Created fingerprint placeholder {fingerprint_id} for asset {request.asset_id}"
-    )
+    logger.info(f"Created fingerprint placeholder {fingerprint_id} for asset {request.asset_id}")
 
     # Update asset processing status
     await assets_collection.update_one(
@@ -755,16 +744,16 @@ async def create_fingerprint(
     summary="Retrieve fingerprint data",
     description="""
     Retrieves complete fingerprint data for the specified fingerprint ID.
-    
+
     Returns all fingerprint data based on asset type:
     - **Images**: Perceptual hashes (pHash, aHash, dHash), image metadata (EXIF)
     - **Audio**: Spectral data (mel-spectrogram, chromagram), audio metadata
     - **Video**: Frame hashes, video metadata (resolution, fps, duration)
     - **Text**: Content hash, text statistics
     - **All types**: OpenAI embeddings if available, processing status
-    
+
     The authenticated user must own the asset associated with the fingerprint.
-    
+
     Phase 2 fields (training_detected, dataset_matches, similarity_scores,
     legal_status) are included for future AI training detection capabilities.
     """,
@@ -812,7 +801,7 @@ async def get_fingerprint(
     # Validate fingerprint_id format
     # MongoDB ObjectIds are 24 character hex strings, but we also accept
     # the generated string IDs from our placeholder records
-    if not fingerprint_id or len(fingerprint_id) < 24:
+    if not fingerprint_id or len(fingerprint_id) < MONGO_OBJECTID_LENGTH:
         logger.warning(f"Invalid fingerprint_id format: {fingerprint_id}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -828,9 +817,7 @@ async def get_fingerprint(
     fingerprint = await fingerprints_collection.find_one({"_id": fingerprint_id})
 
     if fingerprint is None and ObjectId.is_valid(fingerprint_id):
-        fingerprint = await fingerprints_collection.find_one(
-            {"_id": ObjectId(fingerprint_id)}
-        )
+        fingerprint = await fingerprints_collection.find_one({"_id": ObjectId(fingerprint_id)})
 
     if fingerprint is None:
         logger.warning(f"Fingerprint not found: {fingerprint_id}")
