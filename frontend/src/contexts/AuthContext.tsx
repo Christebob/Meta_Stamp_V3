@@ -20,7 +20,7 @@
  * @see Agent Action Plan sections 0.3, 0.4, 0.6, and 0.10
  */
 
-import React, {
+import {
   createContext,
   useState,
   useEffect,
@@ -332,7 +332,7 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
 
         // Log the error for debugging purposes
         // The token has already been cleared by authService if it was invalid
-        console.debug('Session restoration failed:', error instanceof Error ? error.message : error);
+        console.warn('Session restoration failed:', error instanceof Error ? error.message : error);
       } finally {
         // Always clear loading state when initialization is complete
         setIsLoading(false);
@@ -439,7 +439,11 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
  *   return (
  *     <form onSubmit={handleSubmit}>
  *       {error && <div className="error">{error}</div>}
- *       {/* form fields */}
+ *       <input type="email" placeholder="Email" />
+ *       <input type="password" placeholder="Password" />
+ *       <button type="submit" disabled={isLoading}>
+ *         {isLoading ? 'Logging in...' : 'Login'}
+ *       </button>
  *     </form>
  *   );
  * }
