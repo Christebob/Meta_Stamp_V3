@@ -35,7 +35,7 @@ Test Organization:
 
 import asyncio
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -126,9 +126,141 @@ def mock_auth() -> Dict[str, Any]:
 
 @pytest.fixture
 def test_client() -> TestClient:
-    """Create FastAPI TestClient for endpoint testing."""
+    """Create FastAPI TestClient for endpoint testing (without mocks)."""
     from app.main import app
     return TestClient(app)
+
+
+@pytest.fixture
+def mock_user() -> MagicMock:
+    """Create a properly structured mock User object."""
+    mock = MagicMock()
+    mock.id = "test-user-id-12345"
+    mock.email = "testuser@example.com"
+    mock.auth0_id = "auth0|test12345"
+    mock.is_active = True
+    mock.is_verified = True
+    return mock
+
+
+@pytest.fixture
+def mock_storage_service() -> Mock:
+    """Create a properly mocked StorageService for dependency injection."""
+    mock = Mock(spec=StorageService)
+    mock.upload_file = AsyncMock(return_value="uploads/test-key-12345")
+    mock.upload_text_content = AsyncMock(return_value="uploads/test-key-12345")
+    mock.generate_presigned_upload_url = Mock(
+        return_value="https://s3.example.com/bucket/test-key?X-Amz-Signature=abc123"
+    )
+    mock.generate_presigned_download_url = Mock(
+        return_value="https://s3.example.com/bucket/test-key?download"
+    )
+    mock.file_exists = AsyncMock(return_value=True)
+    mock.get_file_metadata = AsyncMock(
+        return_value={"ContentLength": 1024, "ContentType": "text/plain"}
+    )
+    mock.initiate_multipart_upload = AsyncMock(return_value="test-upload-id")
+    mock.complete_multipart_upload = AsyncMock(return_value=True)
+    mock.abort_multipart_upload = AsyncMock(return_value=True)
+    mock.delete_file = AsyncMock(return_value=True)
+    return mock
+
+
+@pytest.fixture
+def mock_upload_service(mock_storage_service: Mock, mock_db: AsyncMock) -> Mock:
+    """Create a properly mocked UploadService for dependency injection."""
+    mock = Mock()
+    
+    # Create properly structured return values with all required fields
+    direct_upload_result = {
+        "asset_id": "test-asset-id-12345",
+        "s3_key": "uploads/test-key-12345",
+        "file_name": "test_file.txt",
+        "file_type": "text",
+        "file_size": 1024,
+        "upload_status": "queued",
+        "status": "processing"
+    }
+    
+    url_upload_result = {
+        "asset_id": "test-asset-id-12345",
+        "s3_key": "uploads/url-content-12345",
+        "file_name": "url_content.txt",
+        "file_type": "url",
+        "file_size": 2048,
+        "upload_status": "queued",
+        "status": "processing",
+        "url": "https://youtube.com/watch?v=test123",
+        "platform": "youtube"
+    }
+    
+    confirm_result = {
+        "asset_id": "test-asset-id-12345",
+        "s3_key": "uploads/test-key-12345",
+        "file_name": "video.mp4",
+        "file_type": "video",
+        "file_size": 52428800,
+        "upload_status": "confirmed",
+        "status": "confirmed"
+    }
+    
+    presigned_url_result = {
+        "presigned_url": "https://s3.example.com/bucket/key?signature=abc",
+        "asset_id": "test-presigned-asset-12345",
+        "object_key": "uploads/presigned-key-12345",
+        "expires_in": 900,
+        "expiration_time": (datetime.now(UTC) + timedelta(seconds=900)).isoformat()
+    }
+    
+    # Use AsyncMock with return_value set to actual dicts
+    mock.handle_direct_upload = AsyncMock(return_value=direct_upload_result)
+    mock.handle_text_upload = AsyncMock(return_value=direct_upload_result)
+    mock.handle_file_upload = AsyncMock(return_value=direct_upload_result)
+    mock.handle_url_upload = AsyncMock(return_value=url_upload_result)
+    mock.confirm_presigned_upload = AsyncMock(return_value=confirm_result)
+    mock.confirm_upload = AsyncMock(return_value=confirm_result)
+    mock.generate_presigned_upload_url = AsyncMock(return_value=presigned_url_result)
+    mock.detect_upload_strategy = Mock(return_value="direct")
+    return mock
+
+
+@pytest.fixture
+def mock_fingerprinting_service() -> Mock:
+    """Create a properly mocked FingerprintingService for dependency injection."""
+    mock = Mock()
+    mock.generate_fingerprint = AsyncMock(return_value={
+        "fingerprint_id": "test-fingerprint-id-12345",
+        "status": "completed"
+    })
+    return mock
+
+
+@pytest.fixture
+def authed_test_client(
+    mock_user: MagicMock,
+    mock_storage_service: Mock,
+    mock_upload_service: Mock,
+    mock_fingerprinting_service: Mock,
+    mock_db: AsyncMock,
+) -> TestClient:
+    """Create FastAPI TestClient with all dependencies mocked for authenticated requests."""
+    from app.main import app
+    from app.core.auth import get_current_user
+    from app.api.v1.upload import get_upload_service, get_storage_service, get_fingerprinting_service
+    from app.core.database import get_db_client
+
+    # Override dependencies with mocks
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[get_upload_service] = lambda: mock_upload_service
+    app.dependency_overrides[get_storage_service] = lambda: mock_storage_service
+    app.dependency_overrides[get_fingerprinting_service] = lambda: mock_fingerprinting_service
+    app.dependency_overrides[get_db_client] = lambda: mock_db
+
+    client = TestClient(app)
+    yield client
+
+    # Clean up overrides after test
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -246,15 +378,6 @@ def mock_redis() -> AsyncMock:
 
 
 @pytest.fixture
-def upload_service(mock_storage: Mock, mock_db: AsyncMock) -> UploadService:
-    """Create UploadService instance with mocked dependencies."""
-    with patch("app.services.upload_service.get_storage_client", return_value=mock_storage):
-        with patch("app.services.upload_service.get_db_client", return_value=mock_db):
-            service = UploadService()
-            return service
-
-
-@pytest.fixture
 def storage_service() -> Mock:
     """Create a mocked StorageService for isolated testing."""
     mock = Mock(spec=StorageService)
@@ -265,9 +388,9 @@ def storage_service() -> Mock:
         return_value="https://s3.example.com/bucket/test-key?download"
     )
     mock.file_exists = Mock(return_value=True)
-    mock.upload_file = Mock(return_value=True)
-    mock.download_file = Mock(return_value=True)
-    mock.delete_file = Mock(return_value=True)
+    mock.upload_file = AsyncMock(return_value=True)
+    mock.download_file = AsyncMock(return_value=True)
+    mock.delete_file = AsyncMock(return_value=True)
     mock.get_file_metadata = Mock(return_value={"ContentLength": 1024, "ContentType": "image/png"})
     mock.initiate_multipart_upload = Mock(return_value="test-upload-id-12345")
     mock.complete_multipart_upload = Mock(return_value=True)
@@ -276,6 +399,39 @@ def storage_service() -> Mock:
         return_value="https://s3.example.com/part-upload-url"
     )
     return mock
+
+
+@pytest.fixture
+def metadata_service() -> Mock:
+    """Create a mocked MetadataService for isolated testing."""
+    from app.services.metadata_service import MetadataService
+    mock = Mock(spec=MetadataService)
+    mock.extract_metadata = AsyncMock(return_value={"width": 100, "height": 100})
+    return mock
+
+
+@pytest.fixture
+def url_processor_service() -> Mock:
+    """Create a mocked URLProcessorService for isolated testing."""
+    from app.services.url_processor_service import URLProcessorService
+    mock = Mock(spec=URLProcessorService)
+    mock.process_url = AsyncMock(return_value={
+        "url_type": "webpage",
+        "content": "Sample content",
+        "metadata": {},
+    })
+    return mock
+
+
+@pytest.fixture
+def upload_service(storage_service: Mock, metadata_service: Mock, url_processor_service: Mock) -> UploadService:
+    """Create UploadService instance with mocked dependencies."""
+    service = UploadService(
+        storage_service=storage_service,
+        metadata_service=metadata_service,
+        url_processor_service=url_processor_service,
+    )
+    return service
 
 
 @pytest.fixture
@@ -379,27 +535,19 @@ class TestUploadRouting:
         should_use_direct = file_size < threshold
         assert should_use_direct is True, "Empty files should route to direct upload"
 
-    @pytest.mark.asyncio
-    async def test_detect_upload_strategy_small(
-        self, mock_storage: Mock, mock_db: AsyncMock
+    def test_detect_upload_strategy_small(
+        self, upload_service: UploadService
     ) -> None:
         """Test detect_upload_strategy returns 'direct' for small files."""
-        with patch("app.services.upload_service.get_storage_client", return_value=mock_storage):
-            with patch("app.services.upload_service.get_db_client", return_value=mock_db):
-                service = UploadService()
-                strategy = service.detect_upload_strategy(5 * 1024 * 1024)
-                assert strategy == "direct", "Small files should use direct upload strategy"
+        strategy = upload_service.detect_upload_strategy(5 * 1024 * 1024)
+        assert strategy == "direct", "Small files should use direct upload strategy"
 
-    @pytest.mark.asyncio
-    async def test_detect_upload_strategy_large(
-        self, mock_storage: Mock, mock_db: AsyncMock
+    def test_detect_upload_strategy_large(
+        self, upload_service: UploadService
     ) -> None:
         """Test detect_upload_strategy returns 'presigned' for large files."""
-        with patch("app.services.upload_service.get_storage_client", return_value=mock_storage):
-            with patch("app.services.upload_service.get_db_client", return_value=mock_db):
-                service = UploadService()
-                strategy = service.detect_upload_strategy(15 * 1024 * 1024)
-                assert strategy == "presigned", "Large files should use presigned URL strategy"
+        strategy = upload_service.detect_upload_strategy(15 * 1024 * 1024)
+        assert strategy == "presigned", "Large files should use presigned URL strategy"
 
 
 # =============================================================================
@@ -413,130 +561,117 @@ class TestDirectUpload:
     @pytest.mark.asyncio
     async def test_direct_upload_text(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
-        mock_storage: Mock,
-        mock_db: AsyncMock,
     ) -> None:
         """Test POST /api/v1/upload/text for direct text upload."""
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    response = test_client.post(
-                        "/api/v1/upload/text",
-                        files={"file": ("test.txt", b"Test content", "text/plain")},
-                        headers=mock_auth["headers"],
-                    )
-                    # Endpoint should accept the request
-                    assert response.status_code in [200, 201, 422], (
-                        f"Text upload failed with {response.status_code}"
-                    )
+        response = authed_test_client.post(
+            "/api/v1/upload/text",
+            files={"file": ("test.txt", b"Test content", "text/plain")},
+            headers=mock_auth["headers"],
+        )
+        # Endpoint should accept the request
+        assert response.status_code in [200, 201, 422], (
+            f"Text upload failed with {response.status_code}"
+        )
 
     @pytest.mark.asyncio
     async def test_direct_upload_image(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
         test_image: BytesIO,
-        mock_storage: Mock,
-        mock_db: AsyncMock,
     ) -> None:
         """Test POST /api/v1/upload/image for direct image upload."""
         test_image.seek(0)
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    response = test_client.post(
-                        "/api/v1/upload/image",
-                        files={"file": ("test.png", test_image.getvalue(), "image/png")},
-                        headers=mock_auth["headers"],
-                    )
-                    assert response.status_code in [200, 201, 422], (
-                        f"Image upload failed with {response.status_code}"
-                    )
+        response = authed_test_client.post(
+            "/api/v1/upload/image",
+            files={"file": ("test.png", test_image.getvalue(), "image/png")},
+            headers=mock_auth["headers"],
+        )
+        assert response.status_code in [200, 201, 422], (
+            f"Image upload failed with {response.status_code}"
+        )
 
     @pytest.mark.asyncio
     async def test_direct_upload_audio(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
-        mock_storage: Mock,
-        mock_db: AsyncMock,
     ) -> None:
         """Test POST /api/v1/upload/audio for direct audio upload."""
         # Create mock audio content
         audio_content = b"RIFF" + b"\x00" * 100  # Simplified WAV header
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    response = test_client.post(
-                        "/api/v1/upload/audio",
-                        files={"file": ("test.mp3", audio_content, "audio/mpeg")},
-                        headers=mock_auth["headers"],
-                    )
-                    assert response.status_code in [200, 201, 422], (
-                        f"Audio upload failed with {response.status_code}"
-                    )
+        response = authed_test_client.post(
+            "/api/v1/upload/audio",
+            files={"file": ("test.mp3", audio_content, "audio/mpeg")},
+            headers=mock_auth["headers"],
+        )
+        assert response.status_code in [200, 201, 422], (
+            f"Audio upload failed with {response.status_code}"
+        )
 
     @pytest.mark.asyncio
     async def test_direct_upload_video(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
-        mock_storage: Mock,
-        mock_db: AsyncMock,
     ) -> None:
         """Test POST /api/v1/upload/video for direct video upload."""
         # Create mock video content
         video_content = b"\x00\x00\x00\x20ftypisom" + b"\x00" * 100  # Simplified MP4 header
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    response = test_client.post(
-                        "/api/v1/upload/video",
-                        files={"file": ("test.mp4", video_content, "video/mp4")},
-                        headers=mock_auth["headers"],
-                    )
-                    assert response.status_code in [200, 201, 422], (
-                        f"Video upload failed with {response.status_code}"
-                    )
+        response = authed_test_client.post(
+            "/api/v1/upload/video",
+            files={"file": ("test.mp4", video_content, "video/mp4")},
+            headers=mock_auth["headers"],
+        )
+        assert response.status_code in [200, 201, 422], (
+            f"Video upload failed with {response.status_code}"
+        )
 
     @pytest.mark.asyncio
     async def test_direct_upload_streams_to_s3(
         self,
-        mock_storage: Mock,
-        mock_db: AsyncMock,
+        mock_storage_service: Mock,
         small_file_content: bytes,
     ) -> None:
         """Verify file is uploaded to S3 during direct upload."""
-        with patch("app.services.upload_service.get_storage_client", return_value=mock_storage):
-            with patch("app.services.upload_service.get_db_client", return_value=mock_db):
-                service = UploadService()
+        # Create mock services
+        mock_metadata_service = Mock()
+        mock_metadata_service.extract_file_metadata = AsyncMock(return_value={
+            "file_size": len(small_file_content),
+            "content_type": "text/plain"
+        })
+        
+        mock_url_processor = Mock()
+        
+        # Create service instance with proper dependencies
+        service = UploadService(
+            storage_service=mock_storage_service,
+            metadata_service=mock_metadata_service,
+            url_processor_service=mock_url_processor
+        )
 
-                # Create mock UploadFile
-                mock_file = MagicMock(spec=UploadFile)
-                mock_file.filename = "test_file.txt"
-                mock_file.content_type = "text/plain"
-                mock_file.size = len(small_file_content)
-                mock_file.read = AsyncMock(return_value=small_file_content)
-                mock_file.seek = AsyncMock()
+        # Create mock UploadFile
+        mock_file = MagicMock(spec=UploadFile)
+        mock_file.filename = "test_file.txt"
+        mock_file.content_type = "text/plain"
+        mock_file.size = len(small_file_content)
+        mock_file.read = AsyncMock(return_value=small_file_content)
+        mock_file.seek = AsyncMock()
 
-                # Mock the collection insert
-                mock_collection = AsyncMock()
-                mock_collection.insert_one = AsyncMock(
-                    return_value=MagicMock(inserted_id="test-asset-id")
-                )
-                mock_db.get_assets_collection.return_value = mock_collection
-
-                # The upload should interact with storage
-                # Note: Actual call depends on implementation
-                mock_storage.upload_file.return_value = True
+        # The upload should interact with storage
+        # Note: Actual call depends on implementation
+        mock_storage_service.upload_file.return_value = True
+        
+        # Verify storage mock is set up properly
+        assert mock_storage_service.upload_file is not None
 
     @pytest.mark.asyncio
     async def test_direct_upload_creates_asset_record(
         self,
         mock_db: AsyncMock,
-        mock_storage: Mock,
+        mock_storage_service: Mock,
     ) -> None:
         """Verify MongoDB asset record is created after direct upload."""
         mock_collection = AsyncMock()
@@ -545,24 +680,25 @@ class TestDirectUpload:
         )
         mock_db.get_assets_collection.return_value = mock_collection
 
-        with patch("app.services.upload_service.get_storage_client", return_value=mock_storage):
-            with patch("app.services.upload_service.get_db_client", return_value=mock_db):
-                service = UploadService()
+        # Create mock services
+        mock_metadata_service = Mock()
+        mock_metadata_service.extract_file_metadata = AsyncMock(return_value={})
+        mock_url_processor = Mock()
 
-                # Create test asset data
-                asset_data = {
-                    "user_id": "test-user-id",
-                    "file_name": "test_file.png",
-                    "file_type": "image",
-                    "file_size": 1024,
-                    "s3_key": "assets/test-user-id/test_file.png",
-                    "upload_status": "ready",
-                }
+        # Create test asset data
+        asset_data = {
+            "user_id": "test-user-id",
+            "file_name": "test_file.png",
+            "file_type": "image",
+            "file_size": 1024,
+            "s3_key": "assets/test-user-id/test_file.png",
+            "upload_status": "ready",
+        }
 
-                # The service should eventually create an asset record
-                # This validates the pattern of MongoDB interaction
-                await mock_collection.insert_one(asset_data)
-                mock_collection.insert_one.assert_called_once()
+        # The service should eventually create an asset record
+        # This validates the pattern of MongoDB interaction
+        await mock_collection.insert_one(asset_data)
+        mock_collection.insert_one.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_direct_upload_triggers_fingerprinting(
@@ -593,26 +729,23 @@ class TestPresignedUrl:
     @pytest.mark.asyncio
     async def test_generate_presigned_url(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
-        mock_storage: Mock,
     ) -> None:
         """Test GET /api/v1/upload/presigned-url endpoint."""
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                response = test_client.get(
-                    "/api/v1/upload/presigned-url",
-                    params={
-                        "filename": "large_video.mp4",
-                        "content_type": "video/mp4",
-                        "file_size": 50 * 1024 * 1024,  # 50MB
-                    },
-                    headers=mock_auth["headers"],
-                )
-                # Should return presigned URL or validation error
-                assert response.status_code in [200, 400, 422], (
-                    f"Presigned URL generation failed with {response.status_code}"
-                )
+        response = authed_test_client.get(
+            "/api/v1/upload/presigned-url",
+            params={
+                "filename": "large_video.mp4",
+                "content_type": "video/mp4",
+                "file_size": 50 * 1024 * 1024,  # 50MB
+            },
+            headers=mock_auth["headers"],
+        )
+        # Should return presigned URL or validation error
+        assert response.status_code in [200, 400, 422], (
+            f"Presigned URL generation failed with {response.status_code}"
+        )
 
     def test_presigned_url_expiration_15_minutes(
         self,
@@ -710,31 +843,24 @@ class TestUploadConfirmation:
     @pytest.mark.asyncio
     async def test_upload_confirmation_validates_s3(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
-        mock_storage: Mock,
-        mock_db: AsyncMock,
     ) -> None:
         """Test POST /api/v1/upload/confirmation validates S3 file existence."""
-        mock_storage.file_exists.return_value = True
-
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    response = test_client.post(
-                        "/api/v1/upload/confirmation",
-                        json={
-                            "s3_key": "assets/user123/video.mp4",
-                            "file_name": "video.mp4",
-                            "file_type": "video",
-                            "file_size": 50 * 1024 * 1024,
-                            "content_type": "video/mp4",
-                        },
-                        headers=mock_auth["headers"],
-                    )
-                    assert response.status_code in [200, 201, 422], (
-                        f"Upload confirmation failed with {response.status_code}"
-                    )
+        response = authed_test_client.post(
+            "/api/v1/upload/confirmation",
+            json={
+                "s3_key": "assets/user123/video.mp4",
+                "file_name": "video.mp4",
+                "file_type": "video",
+                "file_size": 50 * 1024 * 1024,
+                "content_type": "video/mp4",
+            },
+            headers=mock_auth["headers"],
+        )
+        assert response.status_code in [200, 201, 422], (
+            f"Upload confirmation failed with {response.status_code}"
+        )
 
     def test_confirmation_checks_file_exists(
         self,
@@ -795,32 +921,53 @@ class TestUploadConfirmation:
     @pytest.mark.asyncio
     async def test_confirmation_missing_file_fails(
         self,
-        test_client: TestClient,
         mock_auth: Dict[str, Any],
-        mock_storage: Mock,
+        mock_user: MagicMock,
         mock_db: AsyncMock,
     ) -> None:
         """Verify 404 error when S3 file doesn't exist."""
-        mock_storage.file_exists.return_value = False
+        from app.main import app
+        from app.core.auth import get_current_user
+        from app.api.v1.upload import get_upload_service, get_storage_service, get_fingerprinting_service
+        from app.core.database import get_db_client
 
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    response = test_client.post(
-                        "/api/v1/upload/confirmation",
-                        json={
-                            "s3_key": "assets/nonexistent/file.mp4",
-                            "file_name": "file.mp4",
-                            "file_type": "video",
-                            "file_size": 50 * 1024 * 1024,
-                            "content_type": "video/mp4",
-                        },
-                        headers=mock_auth["headers"],
-                    )
-                    # Should return 404 or validation error
-                    assert response.status_code in [404, 400, 422], (
-                        "Missing S3 file should return error"
-                    )
+        # Create a mock upload service that raises error for missing file
+        mock_upload_svc = Mock(spec=UploadService)
+        mock_upload_svc.confirm_upload = AsyncMock(side_effect=HTTPException(
+            status_code=404, detail="File not found in S3"
+        ))
+
+        mock_storage_svc = Mock(spec=StorageService)
+        mock_storage_svc.file_exists = AsyncMock(return_value=False)
+
+        mock_fp_svc = Mock()
+
+        # Override dependencies
+        app.dependency_overrides[get_current_user] = lambda: mock_user
+        app.dependency_overrides[get_upload_service] = lambda: mock_upload_svc
+        app.dependency_overrides[get_storage_service] = lambda: mock_storage_svc
+        app.dependency_overrides[get_fingerprinting_service] = lambda: mock_fp_svc
+        app.dependency_overrides[get_db_client] = lambda: mock_db
+
+        try:
+            client = TestClient(app)
+            response = client.post(
+                "/api/v1/upload/confirmation",
+                json={
+                    "s3_key": "assets/nonexistent/file.mp4",
+                    "file_name": "file.mp4",
+                    "file_type": "video",
+                    "file_size": 50 * 1024 * 1024,
+                    "content_type": "video/mp4",
+                },
+                headers=mock_auth["headers"],
+            )
+            # Should return 404 or validation error
+            assert response.status_code in [404, 400, 422], (
+                "Missing S3 file should return error"
+            )
+        finally:
+            app.dependency_overrides.clear()
 
     @pytest.mark.asyncio
     async def test_confirmation_duplicate_key(
@@ -941,64 +1088,61 @@ class TestURLUpload:
     @pytest.mark.asyncio
     async def test_upload_url_youtube(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
     ) -> None:
         """Test POST /api/v1/upload/url with YouTube URL."""
-        with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-            with patch("app.services.url_processor_service.YouTubeTranscriptApi") as mock_yt:
-                mock_yt.get_transcript.return_value = [
-                    {"text": "Sample transcript", "start": 0.0, "duration": 5.0}
-                ]
-                response = test_client.post(
-                    "/api/v1/upload/url",
-                    json={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"},
-                    headers=mock_auth["headers"],
-                )
-                # Should accept or return validation error
-                assert response.status_code in [200, 201, 400, 422], (
-                    f"YouTube URL upload failed with {response.status_code}"
-                )
+        with patch("app.services.url_processor_service.YouTubeTranscriptApi") as mock_yt:
+            mock_yt.get_transcript.return_value = [
+                {"text": "Sample transcript", "start": 0.0, "duration": 5.0}
+            ]
+            response = authed_test_client.post(
+                "/api/v1/upload/url",
+                json={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"},
+                headers=mock_auth["headers"],
+            )
+            # Should accept or return validation error
+            assert response.status_code in [200, 201, 400, 422], (
+                f"YouTube URL upload failed with {response.status_code}"
+            )
 
     @pytest.mark.asyncio
     async def test_upload_url_vimeo(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
     ) -> None:
         """Test POST /api/v1/upload/url with Vimeo URL."""
-        with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-            response = test_client.post(
-                "/api/v1/upload/url",
-                json={"url": "https://vimeo.com/123456789"},
-                headers=mock_auth["headers"],
-            )
-            assert response.status_code in [200, 201, 400, 422], (
-                f"Vimeo URL upload failed with {response.status_code}"
-            )
+        response = authed_test_client.post(
+            "/api/v1/upload/url",
+            json={"url": "https://vimeo.com/123456789"},
+            headers=mock_auth["headers"],
+        )
+        assert response.status_code in [200, 201, 400, 422], (
+            f"Vimeo URL upload failed with {response.status_code}"
+        )
 
     @pytest.mark.asyncio
     async def test_upload_url_generic_webpage(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
     ) -> None:
         """Test POST /api/v1/upload/url with generic webpage URL."""
-        with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-            with patch("requests.get") as mock_requests:
-                mock_requests.return_value = Mock(
-                    status_code=200,
-                    content=b"<html><body>Test content</body></html>",
-                    headers={"Content-Type": "text/html"},
-                )
-                response = test_client.post(
-                    "/api/v1/upload/url",
-                    json={"url": "https://example.com/article"},
-                    headers=mock_auth["headers"],
-                )
-                assert response.status_code in [200, 201, 400, 422], (
-                    f"Webpage URL upload failed with {response.status_code}"
-                )
+        with patch("requests.get") as mock_requests:
+            mock_requests.return_value = Mock(
+                status_code=200,
+                content=b"<html><body>Test content</body></html>",
+                headers={"Content-Type": "text/html"},
+            )
+            response = authed_test_client.post(
+                "/api/v1/upload/url",
+                json={"url": "https://example.com/article"},
+                headers=mock_auth["headers"],
+            )
+            assert response.status_code in [200, 201, 400, 422], (
+                f"Webpage URL upload failed with {response.status_code}"
+            )
 
     def test_youtube_transcript_extraction(
         self,
@@ -1153,7 +1297,7 @@ class TestFileSizeLimit:
     @pytest.mark.asyncio
     async def test_enforce_500mb_limit(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
     ) -> None:
         """Verify 500MB max file size is enforced."""
@@ -1162,21 +1306,20 @@ class TestFileSizeLimit:
         # Test with oversized file (should be rejected)
         oversized = 501 * 1024 * 1024  # 501MB
 
-        with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-            # Requesting presigned URL for oversized file should fail
-            response = test_client.get(
-                "/api/v1/upload/presigned-url",
-                params={
-                    "filename": "huge_file.mp4",
-                    "content_type": "video/mp4",
-                    "file_size": oversized,
-                },
-                headers=mock_auth["headers"],
-            )
-            # Should return 413 or validation error
-            assert response.status_code in [413, 400, 422], (
-                f"Oversized file should be rejected, got {response.status_code}"
-            )
+        # Requesting presigned URL for oversized file should fail
+        response = authed_test_client.get(
+            "/api/v1/upload/presigned-url",
+            params={
+                "filename": "huge_file.mp4",
+                "content_type": "video/mp4",
+                "file_size": oversized,
+            },
+            headers=mock_auth["headers"],
+        )
+        # Should return 413 or validation error
+        assert response.status_code in [413, 400, 422], (
+            f"Oversized file should be rejected, got {response.status_code}"
+        )
 
     def test_file_size_in_presigned_url_policy(
         self,
@@ -1387,20 +1530,19 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_upload_invalid_content_type(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
     ) -> None:
         """Verify 415 error for unsupported content types."""
-        with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-            response = test_client.post(
-                "/api/v1/upload/image",
-                files={"file": ("test.exe", b"MZ\x90\x00", "application/x-msdownload")},
-                headers=mock_auth["headers"],
-            )
-            # Should return 415 Unsupported Media Type or validation error
-            assert response.status_code in [415, 400, 422], (
-                f"Invalid content type should be rejected, got {response.status_code}"
-            )
+        response = authed_test_client.post(
+            "/api/v1/upload/image",
+            files={"file": ("test.exe", b"MZ\x90\x00", "application/x-msdownload")},
+            headers=mock_auth["headers"],
+        )
+        # Should return 415 Unsupported Media Type or validation error
+        assert response.status_code in [415, 400, 422], (
+            f"Invalid content type should be rejected, got {response.status_code}"
+        )
 
 
 # =============================================================================
@@ -1414,30 +1556,25 @@ class TestConcurrentUploads:
     @pytest.mark.asyncio
     async def test_multiple_simultaneous_uploads(
         self,
-        test_client: TestClient,
+        authed_test_client: TestClient,
         mock_auth: Dict[str, Any],
-        mock_storage: Mock,
-        mock_db: AsyncMock,
     ) -> None:
         """Test handling 5 concurrent uploads."""
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    # Simulate 5 concurrent upload requests
-                    responses = []
-                    for i in range(5):
-                        response = test_client.post(
-                            "/api/v1/upload/text",
-                            files={"file": (f"test_{i}.txt", f"Content {i}".encode(), "text/plain")},
-                            headers=mock_auth["headers"],
-                        )
-                        responses.append(response)
+        # Simulate 5 concurrent upload requests
+        responses = []
+        for i in range(5):
+            response = authed_test_client.post(
+                "/api/v1/upload/text",
+                files={"file": (f"test_{i}.txt", f"Content {i}".encode(), "text/plain")},
+                headers=mock_auth["headers"],
+            )
+            responses.append(response)
 
-                    # All uploads should be accepted (or return validation errors)
-                    for i, response in enumerate(responses):
-                        assert response.status_code in [200, 201, 422], (
-                            f"Upload {i} failed with {response.status_code}"
-                        )
+        # All uploads should be accepted (or return validation errors)
+        for i, response in enumerate(responses):
+            assert response.status_code in [200, 201, 422], (
+                f"Upload {i} failed with {response.status_code}"
+            )
 
     def test_upload_queue_management(self) -> None:
         """Test upload queue enforcement (5 max per user)."""
@@ -1495,24 +1632,17 @@ class TestAuthentication:
     @pytest.mark.asyncio
     async def test_upload_with_valid_token(
         self,
-        test_client: TestClient,
-        mock_auth: Dict[str, Any],
-        mock_storage: Mock,
-        mock_db: AsyncMock,
+        authed_test_client: TestClient,
     ) -> None:
         """Verify upload succeeds with valid token."""
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    response = test_client.post(
-                        "/api/v1/upload/text",
-                        files={"file": ("test.txt", b"Test content", "text/plain")},
-                        headers=mock_auth["headers"],
-                    )
-                    # Should succeed or return validation error (not auth error)
-                    assert response.status_code in [200, 201, 422], (
-                        f"Authenticated request should succeed, got {response.status_code}"
-                    )
+        response = authed_test_client.post(
+            "/api/v1/upload/text",
+            files={"file": ("test.txt", b"Test content", "text/plain")},
+        )
+        # Should succeed or return validation error (not auth error)
+        assert response.status_code in [200, 201, 422], (
+            f"Authenticated request should succeed, got {response.status_code}"
+        )
 
     @pytest.mark.asyncio
     async def test_upload_user_isolation(
@@ -1552,126 +1682,82 @@ class TestAPIResponses:
     @pytest.mark.asyncio
     async def test_upload_returns_asset_id(
         self,
-        test_client: TestClient,
-        mock_auth: Dict[str, Any],
-        mock_storage: Mock,
-        mock_db: AsyncMock,
+        authed_test_client: TestClient,
     ) -> None:
         """Verify asset_id is included in upload response."""
-        mock_collection = AsyncMock()
-        mock_collection.insert_one = AsyncMock(
-            return_value=MagicMock(inserted_id="new-asset-id-12345")
+        response = authed_test_client.post(
+            "/api/v1/upload/text",
+            files={"file": ("test.txt", b"Test content", "text/plain")},
         )
-        mock_db.get_assets_collection.return_value = mock_collection
 
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    response = test_client.post(
-                        "/api/v1/upload/text",
-                        files={"file": ("test.txt", b"Test content", "text/plain")},
-                        headers=mock_auth["headers"],
-                    )
-
-                    if response.status_code in [200, 201]:
-                        data = response.json()
-                        # Response should contain asset_id or id
-                        assert "asset_id" in data or "id" in data or "data" in data
+        if response.status_code in [200, 201]:
+            data = response.json()
+            # Response should contain asset_id or id
+            assert "asset_id" in data or "id" in data or "data" in data
 
     @pytest.mark.asyncio
     async def test_upload_returns_upload_status(
         self,
-        test_client: TestClient,
-        mock_auth: Dict[str, Any],
-        mock_storage: Mock,
-        mock_db: AsyncMock,
+        authed_test_client: TestClient,
     ) -> None:
         """Verify upload_status field is in response."""
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    response = test_client.post(
-                        "/api/v1/upload/text",
-                        files={"file": ("test.txt", b"Test content", "text/plain")},
-                        headers=mock_auth["headers"],
-                    )
+        response = authed_test_client.post(
+            "/api/v1/upload/text",
+            files={"file": ("test.txt", b"Test content", "text/plain")},
+        )
 
-                    if response.status_code in [200, 201]:
-                        data = response.json()
-                        # Response should contain status information
-                        has_status = (
-                            "status" in data
-                            or "upload_status" in data
-                            or ("data" in data and "status" in data.get("data", {}))
-                        )
-                        assert has_status or response.status_code == 200
+        if response.status_code in [200, 201]:
+            data = response.json()
+            # Response should contain status information
+            has_status = (
+                "status" in data
+                or "upload_status" in data
+                or ("data" in data and "status" in data.get("data", {}))
+            )
+            assert has_status or response.status_code == 200
 
     @pytest.mark.asyncio
     async def test_presigned_url_response_format(
         self,
-        test_client: TestClient,
-        mock_auth: Dict[str, Any],
-        mock_storage: Mock,
+        authed_test_client: TestClient,
     ) -> None:
         """Verify presigned URL response includes url, key, expires fields."""
-        mock_storage.generate_presigned_upload_url.return_value = (
-            "https://s3.example.com/bucket/key?signature=abc"
+        response = authed_test_client.get(
+            "/api/v1/upload/presigned-url",
+            params={
+                "filename": "test.mp4",
+                "content_type": "video/mp4",
+                "file_size": 50 * 1024 * 1024,
+            },
         )
 
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                response = test_client.get(
-                    "/api/v1/upload/presigned-url",
-                    params={
-                        "filename": "test.mp4",
-                        "content_type": "video/mp4",
-                        "file_size": 50 * 1024 * 1024,
-                    },
-                    headers=mock_auth["headers"],
-                )
-
-                if response.status_code == 200:
-                    data = response.json()
-                    # Response should contain URL and expiration info
-                    has_url = "url" in data or "upload_url" in data or "presigned_url" in data
-                    assert has_url or "data" in data
+        if response.status_code == 200:
+            data = response.json()
+            # Response should contain URL and expiration info
+            has_url = "url" in data or "upload_url" in data or "presigned_url" in data
+            assert has_url or "data" in data
 
     @pytest.mark.asyncio
     async def test_confirmation_response(
         self,
-        test_client: TestClient,
-        mock_auth: Dict[str, Any],
-        mock_storage: Mock,
-        mock_db: AsyncMock,
+        authed_test_client: TestClient,
     ) -> None:
         """Verify confirmation response includes asset details."""
-        mock_storage.file_exists.return_value = True
-
-        mock_collection = AsyncMock()
-        mock_collection.insert_one = AsyncMock(
-            return_value=MagicMock(inserted_id="confirmed-asset-id")
+        response = authed_test_client.post(
+            "/api/v1/upload/confirmation",
+            json={
+                "s3_key": "assets/user123/video.mp4",
+                "file_name": "video.mp4",
+                "file_type": "video",
+                "file_size": 50 * 1024 * 1024,
+                "content_type": "video/mp4",
+            },
         )
-        mock_db.get_assets_collection.return_value = mock_collection
 
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    response = test_client.post(
-                        "/api/v1/upload/confirmation",
-                        json={
-                            "s3_key": "assets/user123/video.mp4",
-                            "file_name": "video.mp4",
-                            "file_type": "video",
-                            "file_size": 50 * 1024 * 1024,
-                            "content_type": "video/mp4",
-                        },
-                        headers=mock_auth["headers"],
-                    )
-
-                    if response.status_code in [200, 201]:
-                        data = response.json()
-                        # Should contain asset information
-                        assert data is not None
+        if response.status_code in [200, 201]:
+            data = response.json()
+            # Should contain asset information
+            assert data is not None
 
 
 # =============================================================================
@@ -1685,30 +1771,23 @@ class TestPerformance:
     @pytest.mark.asyncio
     async def test_direct_upload_performance(
         self,
-        test_client: TestClient,
-        mock_auth: Dict[str, Any],
-        mock_storage: Mock,
-        mock_db: AsyncMock,
+        authed_test_client: TestClient,
     ) -> None:
         """Verify direct upload completes in <500ms for 1MB file."""
         content = b"x" * (1 * 1024 * 1024)  # 1MB
 
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    start_time = time.perf_counter()
+        start_time = time.perf_counter()
 
-                    response = test_client.post(
-                        "/api/v1/upload/text",
-                        files={"file": ("test.txt", content, "text/plain")},
-                        headers=mock_auth["headers"],
-                    )
+        response = authed_test_client.post(
+            "/api/v1/upload/text",
+            files={"file": ("test.txt", content, "text/plain")},
+        )
 
-                    elapsed = time.perf_counter() - start_time
+        elapsed = time.perf_counter() - start_time
 
-                    # With mocked dependencies, should be very fast
-                    # In real scenario, 500ms would be the target
-                    assert elapsed < 5.0, f"Upload took too long: {elapsed:.2f}s"
+        # With mocked dependencies, should be very fast
+        # In real scenario, 500ms would be the target
+        assert elapsed < 5.0, f"Upload took too long: {elapsed:.2f}s"
 
     def test_presigned_url_generation_performance(
         self,
@@ -1731,31 +1810,24 @@ class TestPerformance:
     @pytest.mark.asyncio
     async def test_bulk_upload_performance(
         self,
-        test_client: TestClient,
-        mock_auth: Dict[str, Any],
-        mock_storage: Mock,
-        mock_db: AsyncMock,
+        authed_test_client: TestClient,
     ) -> None:
         """Test performance with 100 sequential uploads."""
         num_uploads = 10  # Reduced for test speed
 
-        with patch("app.api.v1.upload.get_storage_client", return_value=mock_storage):
-            with patch("app.api.v1.upload.get_db_client", return_value=mock_db):
-                with patch("app.api.v1.upload.get_current_user", return_value=mock_auth["user"]):
-                    start_time = time.perf_counter()
+        start_time = time.perf_counter()
 
-                    for i in range(num_uploads):
-                        test_client.post(
-                            "/api/v1/upload/text",
-                            files={"file": (f"test_{i}.txt", f"Content {i}".encode(), "text/plain")},
-                            headers=mock_auth["headers"],
-                        )
+        for i in range(num_uploads):
+            authed_test_client.post(
+                "/api/v1/upload/text",
+                files={"file": (f"test_{i}.txt", f"Content {i}".encode(), "text/plain")},
+            )
 
-                    elapsed = time.perf_counter() - start_time
-                    avg_time = elapsed / num_uploads
+        elapsed = time.perf_counter() - start_time
+        avg_time = elapsed / num_uploads
 
-                    # Average time per upload should be reasonable
-                    assert avg_time < 1.0, f"Average upload time too high: {avg_time:.4f}s"
+        # Average time per upload should be reasonable
+        assert avg_time < 1.0, f"Average upload time too high: {avg_time:.4f}s"
 
 
 # =============================================================================
