@@ -152,6 +152,12 @@ ignore = [
     # and dependency injection. Limiting arguments would harm code organization.
     "PLR0913",
     
+    # PLR0911: Too many return statements
+    # Reason: Validation functions use early-return pattern for cleaner code
+    # with one validation check per return. This is more readable than complex
+    # nested conditionals or exception-based validation.
+    "PLR0911",
+    
     # TRY003: Avoid specifying long messages outside the exception class
     # Reason: We prefer descriptive error messages at the raise site for clarity
     "TRY003",

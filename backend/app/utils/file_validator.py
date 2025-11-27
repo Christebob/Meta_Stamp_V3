@@ -60,9 +60,7 @@ ALLOWED_EXTENSIONS_BY_CATEGORY: dict[str, list[str]] = {
 # Flat set of all allowed extensions for quick membership testing
 # Used by tests and simple validation checks
 ALLOWED_EXTENSIONS: set[str] = {
-    ext
-    for extensions in ALLOWED_EXTENSIONS_BY_CATEGORY.values()
-    for ext in extensions
+    ext for extensions in ALLOWED_EXTENSIONS_BY_CATEGORY.values() for ext in extensions
 }
 
 
@@ -439,9 +437,7 @@ def _check_mime_special_cases(
     )
 
 
-def validate_mime_type(
-    file_content: bytes, expected_type_or_filename: str
-) -> dict[str, Any]:
+def validate_mime_type(file_content: bytes, expected_type_or_filename: str) -> dict[str, Any]:
     """
     Validate actual MIME type of file content against expected type.
 
@@ -475,9 +471,6 @@ def validate_mime_type(
         >>> validate_mime_type(content, "image.png")  # Using filename
         {"is_valid": True, "error": None, ...}
     """
-    # Import here to avoid circular import
-    from typing import Any
-
     result: dict[str, Any] = {
         "is_valid": True,
         "error": None,
@@ -567,9 +560,7 @@ def validate_mime_type(
         return result
 
 
-def validate_mime_type_tuple(
-    file_content: bytes, filename: str
-) -> tuple[bool, str | None]:
+def validate_mime_type_tuple(file_content: bytes, filename: str) -> tuple[bool, str | None]:
     """
     Validate MIME type and return a tuple (legacy format).
 
@@ -592,9 +583,7 @@ def validate_mime_type_tuple(
 # =============================================================================
 
 
-def validate_file_size(
-    file_size: int, max_size: int | None = None
-) -> dict[str, Any]:
+def validate_file_size(file_size: int, max_size: int | None = None) -> dict[str, Any]:
     """
     Validate file size against maximum allowed limit.
 
@@ -623,9 +612,6 @@ def validate_file_size(
         >>> validate_file_size(600 * 1024 * 1024)  # 600 MB
         {"is_valid": False, "error": "File size exceeds maximum allowed", ...}
     """
-    # Import here to avoid circular import
-    from typing import Any
-
     # Use default max size if not provided
     if max_size is None:
         max_size = MAX_FILE_SIZE_BYTES
@@ -649,7 +635,9 @@ def validate_file_size(
         size_mb = file_size / (1024 * 1024)
         max_mb = max_size / (1024 * 1024)
         result["is_valid"] = False
-        result["error"] = f"File size ({size_mb:.2f} MB) exceeds maximum allowed ({max_mb:.0f}MB limit)"
+        result["error"] = (
+            f"File size ({size_mb:.2f} MB) exceeds maximum allowed ({max_mb:.0f}MB limit)"
+        )
         return result
 
     return result
@@ -844,9 +832,6 @@ def validate_filename(filename: str) -> dict[str, Any]:
         >>> validate_filename("normal_file.txt")
         {"is_valid": True, "error": None, "sanitized": "normal_file.txt"}
     """
-    # Import here to avoid circular import with Any type hint
-    from typing import Any
-
     result: dict[str, Any] = {
         "is_valid": True,
         "error": None,
@@ -960,9 +945,6 @@ def validate_url(url: str) -> dict[str, Any]:
         >>> validate_url("https://example.com/malware.exe")
         {"is_valid": False, "url_type": None, "error": "URL points to prohibited file type '.exe'"}
     """
-    # Import here to avoid circular import with Any type hint
-    from typing import Any
-
     result: dict[str, Any] = {
         "is_valid": True,
         "url_type": None,
@@ -998,7 +980,9 @@ def validate_url(url: str) -> dict[str, Any]:
 
     if parsed.scheme.lower() not in ["http", "https"]:
         result["is_valid"] = False
-        result["error"] = f"URL scheme '{parsed.scheme}' is not allowed. Only http and https are permitted."
+        result["error"] = (
+            f"URL scheme '{parsed.scheme}' is not allowed. Only http and https are permitted."
+        )
         return result
 
     # Validate netloc (domain)
