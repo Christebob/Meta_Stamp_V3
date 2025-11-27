@@ -102,7 +102,8 @@ const getAvatarColorClass = (str: string): string => {
     hash = hash & hash; // Convert to 32bit integer
   }
 
-  return colors[Math.abs(hash) % colors.length];
+  const index = Math.abs(hash) % colors.length;
+  return colors[index] ?? 'bg-blue-500';
 };
 
 /**
@@ -115,11 +116,18 @@ const getInitials = (name: string): string => {
   if (!name) return 'U';
 
   const parts = name.trim().split(/\s+/);
+  const firstPart = parts[0];
+  const lastPart = parts[parts.length - 1];
+  
+  if (!firstPart) return 'U';
+  
   if (parts.length === 1) {
-    return parts[0].charAt(0).toUpperCase();
+    return firstPart.charAt(0).toUpperCase();
   }
 
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  const firstInitial = firstPart.charAt(0);
+  const lastInitial = lastPart ? lastPart.charAt(0) : '';
+  return (firstInitial + lastInitial).toUpperCase();
 };
 
 /**
