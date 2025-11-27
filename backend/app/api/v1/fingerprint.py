@@ -365,9 +365,9 @@ async def process_fingerprint_background(
         storage_service = StorageService(
             bucket_name=settings.s3_bucket_name,
             endpoint_url=settings.s3_endpoint_url,
-            access_key=settings.s3_access_key,
-            secret_key=settings.s3_secret_key,
-            region=settings.s3_region,
+            access_key=settings.s3_access_key_id,
+            secret_key=settings.s3_secret_access_key,
+            region_name=settings.s3_region,
         )
 
         # Create metadata service

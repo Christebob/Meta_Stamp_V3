@@ -40,6 +40,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.tools import tool
 
 from app.config import Settings, get_settings
+from app.core.database import get_db_client
 from app.core.redis_client import RedisClient, get_redis_client
 from app.services.ai_value_service import AIValueService
 from app.services.fingerprinting_service import FingerprintingService
@@ -122,8 +123,6 @@ async def lookup_fingerprint(asset_id: str) -> dict[str, Any]:
 
     try:
         # Get database client and query fingerprint
-        from app.core.database import get_db_client
-
         db_client = get_db_client()
         fingerprint_collection = db_client.get_fingerprints_collection()
 
@@ -207,8 +206,8 @@ async def query_analytics(asset_id: str) -> dict[str, Any]:
 
     This tool retrieves AI Touch Value calculations and analytics data
     for a given asset, including compensation estimates based on the
-    formula: AI Touch Value = ModelEarnings × (ContributionScore/100)
-    × (ExposureScore/100) × 0.25
+    formula: AI Touch Value = ModelEarnings * (ContributionScore/100)
+    * (ExposureScore/100) * 0.25
 
     Use this when the user asks about their potential earnings,
     AI Touch Value, compensation estimates, or analytics for their content.
@@ -248,7 +247,7 @@ async def query_analytics(asset_id: str) -> dict[str, Any]:
                 "message": "No AI Touch Value calculations found for this asset. "
                 "Calculations are generated when you submit your asset for analysis.",
                 "formula_info": {
-                    "formula": "AI Touch Value™ = ModelEarnings × (ContributionScore/100) × (ExposureScore/100) × 0.25",
+                    "formula": "AI Touch Value = ModelEarnings * (ContributionScore/100) * (ExposureScore/100) * 0.25",
                     "equity_factor": 0.25,
                     "description": "The 25% equity factor represents the standard creator compensation rate.",
                 },
@@ -390,7 +389,8 @@ class AIAssistantService:
         self.tools = [lookup_fingerprint, query_analytics]
 
         # Set global service instances for tool functions
-        global _fingerprint_service_instance, _ai_value_service_instance
+        # This is an intentional pattern for dependency injection with module-level tool functions
+        global _fingerprint_service_instance, _ai_value_service_instance  # noqa: PLW0603
         _fingerprint_service_instance = fingerprint_service
         _ai_value_service_instance = ai_value_service
 
@@ -526,8 +526,8 @@ class AIAssistantService:
             self.logger.debug(f"Retrieved {len(context_json)} messages from context")
             return context_json
 
-        except Exception as e:
-            self.logger.exception(f"Error retrieving conversation context: {e}")
+        except Exception:
+            self.logger.exception("Error retrieving conversation context")
             return []
 
     async def _save_conversation_context(
@@ -573,7 +573,7 @@ class AIAssistantService:
                 self.logger.warning(f"Failed to save context to Redis for {redis_key}")
 
         except Exception as e:
-            self.logger.exception(f"Error saving conversation context: {e}")
+            self.logger.exception("Error saving conversation context")
             raise ConversationContextError(f"Failed to save conversation context: {e}") from e
 
     def _build_system_prompt(self, personality: str = "friendly") -> str:
@@ -590,17 +590,17 @@ class AIAssistantService:
         Returns:
             System prompt string for the AI assistant
         """
-        base_context = """You are an AI assistant for META-STAMP V3, a comprehensive creator-protection platform 
-that helps creators protect their creative assets and receive fair compensation when their content 
+        base_context = """You are an AI assistant for META-STAMP V3, a comprehensive creator-protection platform
+that helps creators protect their creative assets and receive fair compensation when their content
 is used in AI training.
 
 You have access to the following tools:
-1. lookup_fingerprint: Look up fingerprint data for a creator's asset, including perceptual hashes, 
+1. lookup_fingerprint: Look up fingerprint data for a creator's asset, including perceptual hashes,
    spectral analysis, and embedding data that uniquely identifies their content.
-2. query_analytics: Query AI Touch Value™ analytics for an asset, showing compensation estimates 
-   based on the formula: AI Touch Value = ModelEarnings × (ContributionScore/100) × (ExposureScore/100) × 0.25
+2. query_analytics: Query AI Touch Value analytics for an asset, showing compensation estimates
+   based on the formula: AI Touch Value = ModelEarnings * (ContributionScore/100) * (ExposureScore/100) * 0.25
 
-When users ask about their assets, fingerprints, or compensation, use these tools to provide 
+When users ask about their assets, fingerprints, or compensation, use these tools to provide
 accurate, up-to-date information."""
 
         if personality == "friendly":
@@ -609,10 +609,10 @@ accurate, up-to-date information."""
 Your personality is warm, friendly, and supportive. You're here to help creators understand:
 - How their creative assets are protected
 - What fingerprinting means and how it works
-- How the AI Touch Value™ system calculates their potential compensation
+- How the AI Touch Value system calculates their potential compensation
 - General questions about the META-STAMP platform
 
-Be encouraging and use simple, accessible language. When explaining technical concepts, 
+Be encouraging and use simple, accessible language. When explaining technical concepts,
 use analogies and examples. Celebrate the creator's work and help them feel empowered.
 
 Key points to remember:
@@ -626,7 +626,7 @@ Key points to remember:
 
 Your personality is professional, serious, and legally-minded. You provide:
 - Precise, factual information about asset protection
-- Detailed explanations of the AI Touch Value™ calculation methodology
+- Detailed explanations of the AI Touch Value calculation methodology
 - Careful, measured responses about legal implications
 - Clear disclaimers when appropriate
 
@@ -636,8 +636,8 @@ Important disclaimers to include when relevant:
 - Creators should consult legal professionals for specific legal matters
 - The 25% equity factor is the platform's standard rate, not a legal requirement
 
-Focus on accuracy, transparency, and helping creators understand their options 
-within the META-STAMP ecosystem. Use precise terminology and provide citations 
+Focus on accuracy, transparency, and helping creators understand their options
+within the META-STAMP ecosystem. Use precise terminology and provide citations
 to specific calculation formulas when discussing compensation."""
 
         else:
@@ -665,9 +665,9 @@ to specific calculation formulas when discussing compensation."""
 
             if role == "system":
                 langchain_messages.append(SystemMessage(content=content))
-            elif role == "user" or role == "human":
+            elif role in {"user", "human"}:
                 langchain_messages.append(HumanMessage(content=content))
-            elif role == "assistant" or role == "ai":
+            elif role in {"assistant", "ai"}:
                 langchain_messages.append(AIMessage(content=content))
             elif role == "tool":
                 langchain_messages.append(
@@ -734,7 +734,7 @@ to specific calculation formulas when discussing compensation."""
                 self.logger.info(f"Tool {tool_name} executed successfully")
 
             except Exception as e:
-                self.logger.exception(f"Error executing tool {tool_name}: {e}")
+                self.logger.exception("Error executing tool %s", tool_name)
                 results.append(
                     {
                         "tool_call_id": tool_call_id,
@@ -1039,8 +1039,8 @@ to specific calculation formulas when discussing compensation."""
             else:
                 self.logger.debug(f"No conversation to clear: {redis_key}")
 
-        except Exception as e:
-            self.logger.exception(f"Error clearing conversation: {e}")
+        except Exception:
+            self.logger.exception("Error clearing conversation")
 
     async def get_conversation_history(
         self, user_id: str, conversation_id: str
@@ -1108,7 +1108,7 @@ to specific calculation formulas when discussing compensation."""
             available = [p for p in ["openai", "anthropic", "google"] if self.api_keys.get(p)]
             available.append("local")  # Local is always available
             raise ProviderInitializationError(
-                f"Provider '{new_provider}' is not configured. " f"Available providers: {available}"
+                f"Provider '{new_provider}' is not configured. Available providers: {available}"
             )
 
         # Test initialization (will raise if invalid)

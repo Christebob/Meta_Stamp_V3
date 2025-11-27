@@ -24,9 +24,11 @@ Security Features:
 """
 
 import logging
-from datetime import UTC, datetime
-from typing import Any, Optional
 
+from datetime import UTC, datetime
+from typing import Any
+
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field
@@ -76,7 +78,7 @@ class LoginRequest(BaseModel):
         description="User's email address for authentication",
         examples=["creator@example.com"],
     )
-    password: Optional[str] = Field(
+    password: str | None = Field(
         default=None,
         min_length=8,
         max_length=128,
@@ -243,8 +245,6 @@ async def _update_user_last_login(user_id: str) -> None:
         Errors are logged but not raised to avoid blocking login success.
     """
     try:
-        from bson import ObjectId
-
         db_client = get_db_client()
         users_collection = db_client.get_users_collection()
 
@@ -497,9 +497,7 @@ async def get_me(
     logger.debug("Profile request for user: %s (%s)", user_id, email)
 
     # Convert user dictionary to response model
-    user_response = _create_user_response_from_dict(current_user)
-
-    return user_response
+    return _create_user_response_from_dict(current_user)
 
 
 # =============================================================================
