@@ -14,13 +14,17 @@ Security Constraints (NON-NEGOTIABLE - Agent Action Plan Section 0.3):
 Author: META-STAMP V3 Development Team
 """
 
+import contextlib
+import json
 import logging
 import re
-from datetime import datetime
-from typing import Any, Dict, Optional
+
+from datetime import UTC, datetime
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import requests
+
 from bs4 import BeautifulSoup
 from youtube_transcript_api import (
     NoTranscriptFound,
@@ -38,6 +42,9 @@ from app.utils.file_validator import validate_url as validator_validate_url
 
 # Default timeout for HTTP requests (in seconds)
 DEFAULT_REQUEST_TIMEOUT: int = 30
+
+# YouTube video ID standard length
+YOUTUBE_VIDEO_ID_LENGTH: int = 11
 
 # User-Agent header for HTTP requests to avoid being blocked
 DEFAULT_USER_AGENT: str = (
@@ -180,7 +187,6 @@ class URLProcessorService:
         url_lower = url.lower().strip()
 
         # Check for YouTube URLs
-        youtube_domains = ["youtube.com", "youtu.be", "www.youtube.com", "m.youtube.com"]
         parsed = urlparse(url_lower)
         netloc = parsed.netloc.replace("www.", "").replace("m.", "")
 
@@ -198,7 +204,7 @@ class URLProcessorService:
     # VIDEO ID EXTRACTION
     # =========================================================================
 
-    def extract_youtube_video_id(self, url: str) -> Optional[str]:
+    def extract_youtube_video_id(self, url: str) -> str | None:
         """
         Extract the video ID from a YouTube URL.
 
@@ -251,7 +257,7 @@ class URLProcessorService:
             parsed = urlparse(url)
             query_params = parse_qs(parsed.query)
             video_id_list = query_params.get("v", [])
-            if video_id_list and len(video_id_list[0]) == 11:
+            if video_id_list and len(video_id_list[0]) == YOUTUBE_VIDEO_ID_LENGTH:
                 return video_id_list[0]
         except Exception as e:
             self.logger.debug(f"Query string parsing failed: {e}")
@@ -259,7 +265,7 @@ class URLProcessorService:
         self.logger.warning(f"Could not extract YouTube video ID from URL: {url}")
         return None
 
-    def extract_vimeo_video_id(self, url: str) -> Optional[str]:
+    def extract_vimeo_video_id(self, url: str) -> str | None:
         """
         Extract the video ID from a Vimeo URL.
 
@@ -310,7 +316,7 @@ class URLProcessorService:
     # YOUTUBE PROCESSING
     # =========================================================================
 
-    async def process_youtube_url(self, url: str) -> Dict[str, Any]:
+    async def process_youtube_url(self, url: str) -> dict[str, Any]:
         """
         Process a YouTube URL to extract transcript and metadata.
 
@@ -342,7 +348,7 @@ class URLProcessorService:
             >>> print(result["transcript"][:50])
             "We're no strangers to love..."
         """
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "success": False,
             "platform": "youtube",
             "url": url,
@@ -351,7 +357,7 @@ class URLProcessorService:
             "transcript_segments": None,
             "metadata": {},
             "error": None,
-            "processed_at": datetime.utcnow().isoformat(),
+            "processed_at": datetime.now(tz=UTC).isoformat(),
         }
 
         # Extract video ID
@@ -395,9 +401,7 @@ class URLProcessorService:
                 transcript_segments = transcript_data
 
                 # Combine transcript segments into full text
-                transcript_text = " ".join(
-                    segment.get("text", "") for segment in transcript_data
-                )
+                transcript_text = " ".join(segment.get("text", "") for segment in transcript_data)
                 # Clean up transcript text
                 transcript_text = self._clean_transcript_text(transcript_text)
 
@@ -421,8 +425,8 @@ class URLProcessorService:
             self.logger.warning(f"No transcript found for video: {video_id}")
 
         except Exception as e:
-            self.logger.error(f"Error fetching YouTube transcript: {e}")
-            result["error"] = f"Error fetching transcript: {str(e)}"
+            self.logger.exception("Error fetching YouTube transcript")
+            result["error"] = f"Error fetching transcript: {e!s}"
 
         # Attempt to fetch video metadata via page scraping
         try:
@@ -437,9 +441,7 @@ class URLProcessorService:
 
         return result
 
-    async def _fetch_youtube_metadata(
-        self, url: str, video_id: str
-    ) -> Dict[str, Any]:
+    async def _fetch_youtube_metadata(self, url: str, video_id: str) -> dict[str, Any]:
         """
         Fetch YouTube video metadata by scraping the video page.
 
@@ -450,7 +452,7 @@ class URLProcessorService:
         Returns:
             Dictionary containing title, description, channel, and other metadata
         """
-        metadata: Dict[str, Any] = {
+        metadata: dict[str, Any] = {
             "title": None,
             "description": None,
             "channel": None,
@@ -495,25 +497,19 @@ class URLProcessorService:
             script_tags = soup.find_all("script", type="application/ld+json")
             for script in script_tags:
                 try:
-                    import json
                     data = json.loads(script.string)
-                    if isinstance(data, dict):
-                        if data.get("@type") == "VideoObject":
-                            metadata["channel"] = data.get("author", {}).get("name")
-                            metadata["duration"] = data.get("duration")
-                            metadata["upload_date"] = data.get("uploadDate")
+                    if isinstance(data, dict) and data.get("@type") == "VideoObject":
+                        metadata["channel"] = data.get("author", {}).get("name")
+                        metadata["duration"] = data.get("duration")
+                        metadata["upload_date"] = data.get("uploadDate")
                 except (json.JSONDecodeError, TypeError, AttributeError):
                     continue
 
             # Try to extract view count from page content
-            view_count_match = re.search(
-                r'"viewCount":\s*"(\d+)"', response.text
-            )
+            view_count_match = re.search(r'"viewCount":\s*"(\d+)"', response.text)
             if view_count_match:
-                try:
+                with contextlib.suppress(ValueError):
                     metadata["view_count"] = int(view_count_match.group(1))
-                except ValueError:
-                    pass
 
             self.logger.debug(f"Extracted YouTube metadata: title={metadata.get('title')}")
 
@@ -521,15 +517,13 @@ class URLProcessorService:
             self.logger.warning(f"Timeout fetching YouTube metadata for video: {video_id}")
 
         except requests.exceptions.ConnectionError:
-            self.logger.warning(
-                f"Connection error fetching YouTube metadata for video: {video_id}"
-            )
+            self.logger.warning(f"Connection error fetching YouTube metadata for video: {video_id}")
 
         except requests.exceptions.RequestException as e:
             self.logger.warning(f"Request error fetching YouTube metadata: {e}")
 
-        except Exception as e:
-            self.logger.error(f"Unexpected error fetching YouTube metadata: {e}")
+        except Exception:
+            self.logger.exception("Unexpected error fetching YouTube metadata")
 
         return metadata
 
@@ -553,15 +547,13 @@ class URLProcessorService:
         text = text.strip()
 
         # Remove multiple spaces
-        text = re.sub(r" {2,}", " ", text)
-
-        return text
+        return re.sub(r" {2,}", " ", text)
 
     # =========================================================================
     # VIMEO PROCESSING
     # =========================================================================
 
-    async def process_vimeo_url(self, url: str) -> Dict[str, Any]:
+    async def process_vimeo_url(self, url: str) -> dict[str, Any]:
         """
         Process a Vimeo URL to extract video metadata.
 
@@ -586,14 +578,14 @@ class URLProcessorService:
             >>> print(result["metadata"]["title"])
             "My Awesome Video"
         """
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "success": False,
             "platform": "vimeo",
             "url": url,
             "video_id": None,
             "metadata": {},
             "error": None,
-            "processed_at": datetime.utcnow().isoformat(),
+            "processed_at": datetime.now(tz=UTC).isoformat(),
         }
 
         # Extract video ID
@@ -613,25 +605,25 @@ class URLProcessorService:
             result["success"] = bool(metadata.get("title"))
 
         except Exception as e:
-            self.logger.error(f"Error processing Vimeo URL: {e}")
-            result["error"] = f"Error processing Vimeo video: {str(e)}"
+            self.logger.exception("Error processing Vimeo URL")
+            result["error"] = f"Error processing Vimeo video: {e!s}"
 
         return result
 
-    async def _fetch_vimeo_metadata(
+    async def _fetch_vimeo_metadata(  # noqa: PLR0912
         self, url: str, video_id: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Fetch Vimeo video metadata by scraping the video page.
 
         Args:
-            url: The Vimeo URL
-            video_id: The extracted video ID
+            url: The Vimeo URL to fetch metadata from
+            video_id: The extracted video ID (for logging purposes)
 
         Returns:
             Dictionary containing title, description, author, and other metadata
         """
-        metadata: Dict[str, Any] = {
+        metadata: dict[str, Any] = {
             "title": None,
             "description": None,
             "author": None,
@@ -641,8 +633,9 @@ class URLProcessorService:
         }
 
         try:
-            # Use the main Vimeo URL format
-            vimeo_url = f"https://vimeo.com/{video_id}"
+            # Use the standard Vimeo URL format for consistent access
+            # Fall back to video_id-based URL if original URL is a player embed
+            vimeo_url = f"https://vimeo.com/{video_id}" if "player.vimeo.com" in url else url
 
             response = requests.get(
                 vimeo_url,
@@ -676,7 +669,6 @@ class URLProcessorService:
             script_tags = soup.find_all("script", type="application/ld+json")
             for script in script_tags:
                 try:
-                    import json
                     data = json.loads(script.string)
                     if isinstance(data, dict) and data.get("@type") == "VideoObject":
                         if not metadata["title"]:
@@ -685,7 +677,7 @@ class URLProcessorService:
                             metadata["description"] = data.get("description")
                         metadata["duration"] = data.get("duration")
                         metadata["upload_date"] = data.get("uploadDate")
-                        
+
                         # Extract author/creator
                         author_data = data.get("author") or data.get("creator")
                         if isinstance(author_data, dict):
@@ -701,15 +693,13 @@ class URLProcessorService:
             self.logger.warning(f"Timeout fetching Vimeo metadata for video: {video_id}")
 
         except requests.exceptions.ConnectionError:
-            self.logger.warning(
-                f"Connection error fetching Vimeo metadata for video: {video_id}"
-            )
+            self.logger.warning(f"Connection error fetching Vimeo metadata for video: {video_id}")
 
         except requests.exceptions.RequestException as e:
             self.logger.warning(f"Request error fetching Vimeo metadata: {e}")
 
-        except Exception as e:
-            self.logger.error(f"Unexpected error fetching Vimeo metadata: {e}")
+        except Exception:
+            self.logger.exception("Unexpected error fetching Vimeo metadata")
 
         return metadata
 
@@ -717,7 +707,7 @@ class URLProcessorService:
     # WEBPAGE PROCESSING
     # =========================================================================
 
-    async def process_webpage_url(self, url: str) -> Dict[str, Any]:
+    async def process_webpage_url(self, url: str) -> dict[str, Any]:
         """
         Process a general webpage URL to extract text content.
 
@@ -747,7 +737,7 @@ class URLProcessorService:
             >>> print(result["title"])
             "Example Article"
         """
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "success": False,
             "platform": "webpage",
             "url": url,
@@ -756,7 +746,7 @@ class URLProcessorService:
             "content": None,
             "word_count": 0,
             "error": None,
-            "processed_at": datetime.utcnow().isoformat(),
+            "processed_at": datetime.now(tz=UTC).isoformat(),
         }
 
         self.logger.info(f"Processing webpage URL: {url}")
@@ -804,16 +794,16 @@ class URLProcessorService:
             self.logger.warning(f"HTTP error {e.response.status_code} for: {url}")
 
         except requests.exceptions.RequestException as e:
-            result["error"] = f"Request failed: {str(e)}"
+            result["error"] = f"Request failed: {e!s}"
             self.logger.warning(f"Request error fetching webpage: {e}")
 
         except Exception as e:
-            result["error"] = f"Error processing webpage: {str(e)}"
-            self.logger.error(f"Unexpected error processing webpage: {e}")
+            result["error"] = f"Error processing webpage: {e!s}"
+            self.logger.exception("Unexpected error processing webpage")
 
         return result
 
-    def _extract_webpage_title(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_webpage_title(self, soup: BeautifulSoup) -> str | None:
         """
         Extract the title from a parsed webpage.
 
@@ -845,7 +835,7 @@ class URLProcessorService:
 
         return None
 
-    def _extract_webpage_description(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_webpage_description(self, soup: BeautifulSoup) -> str | None:
         """
         Extract the description from a parsed webpage.
 
@@ -935,9 +925,7 @@ class URLProcessorService:
         text = main_content.get_text(separator=" ", strip=True)
 
         # Clean up text
-        text = self._clean_webpage_text(text)
-
-        return text
+        return self._clean_webpage_text(text)
 
     def _clean_webpage_text(self, text: str) -> str:
         """
@@ -959,15 +947,13 @@ class URLProcessorService:
         text = re.sub(r"\n{3,}", "\n\n", text)
 
         # Strip leading/trailing whitespace
-        text = text.strip()
-
-        return text
+        return text.strip()
 
     # =========================================================================
     # UNIVERSAL URL PROCESSOR
     # =========================================================================
 
-    async def process_url(self, url: str) -> Dict[str, Any]:
+    async def process_url(self, url: str) -> dict[str, Any]:
         """
         Universal URL processor that validates, detects platform, and routes
         to the appropriate processing method.
@@ -997,12 +983,12 @@ class URLProcessorService:
             ...     print(f"Content length: {len(result.get('transcript', ''))}")
         """
         # Initialize base result structure
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "success": False,
             "platform": None,
             "url": url,
             "error": None,
-            "processed_at": datetime.utcnow().isoformat(),
+            "processed_at": datetime.now(tz=UTC).isoformat(),
         }
 
         # Validate URL first
@@ -1029,19 +1015,16 @@ class URLProcessorService:
         # Route to appropriate processor
         try:
             if url_type == "youtube":
-                processed = await self.process_youtube_url(url)
-                return processed
+                return await self.process_youtube_url(url)
 
-            elif url_type == "vimeo":
-                processed = await self.process_vimeo_url(url)
-                return processed
+            if url_type == "vimeo":
+                return await self.process_vimeo_url(url)
 
-            else:  # webpage
-                processed = await self.process_webpage_url(url)
-                return processed
+            # webpage
+            return await self.process_webpage_url(url)
 
         except Exception as e:
-            result["error"] = f"Unexpected error processing URL: {str(e)}"
+            result["error"] = f"Unexpected error processing URL: {e!s}"
             self.logger.error(f"Error in process_url: {e}", exc_info=True)
             return result
 
