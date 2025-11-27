@@ -48,8 +48,10 @@ Usage:
 import hashlib
 import json
 import logging
+
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, TypeVar
 
 from app.core.redis_client import get_redis_client
 
@@ -146,7 +148,7 @@ def generate_cache_key(prefix: str, *args: Any, **kwargs: Any) -> str:
                 key,
                 str(e),
             )
-            parts.append(f"{key}={repr(value)}")
+            parts.append(f"{key}={value!r}")
 
     # Create deterministic hash of all arguments
     args_string = ":".join(parts) if parts else ""
@@ -167,7 +169,7 @@ def generate_cache_key(prefix: str, *args: Any, **kwargs: Any) -> str:
 
 def cache_decorator(
     ttl_seconds: int = 300,
-    key_prefix: Optional[str] = None,
+    key_prefix: str | None = None,
 ) -> Callable[[F], F]:
     """
     Decorator for caching async function results in Redis with configurable TTL.
@@ -258,8 +260,12 @@ def cache_decorator(
             filtered_args = []
             for i, arg in enumerate(args):
                 # Skip 'self' or 'cls' parameter (first arg that's an object instance)
-                if i == 0 and hasattr(arg, "__class__") and not isinstance(
-                    arg, (str, int, float, bool, bytes, type(None), list, dict, tuple)
+                if (
+                    i == 0
+                    and hasattr(arg, "__class__")
+                    and not isinstance(
+                        arg, (str, int, float, bool, bytes, type(None), list, dict, tuple)
+                    )
                 ):
                     continue
                 filtered_args.append(arg)
@@ -329,7 +335,7 @@ def cache_decorator(
 # =============================================================================
 
 
-async def get_cached_value(key: str) -> Optional[Any]:
+async def get_cached_value(key: str) -> Any | None:
     """
     Retrieve a cached value from Redis by key.
 
@@ -372,11 +378,11 @@ async def get_cached_value(key: str) -> Optional[Any]:
             logger.debug("Cache miss for key '%s'", key)
         return value
 
-    except json.JSONDecodeError as e:
-        logger.error("Failed to decode JSON for key '%s': %s", key, str(e))
+    except json.JSONDecodeError:
+        logger.exception("Failed to decode JSON for key '%s'", key)
         return None
-    except Exception as e:
-        logger.error("Error retrieving cached value for key '%s': %s", key, str(e))
+    except Exception:
+        logger.exception("Error retrieving cached value for key '%s'", key)
         return None
 
 
@@ -434,11 +440,11 @@ async def set_cached_value(
             logger.warning("Failed to set cached value for key '%s'", key)
         return success
 
-    except (TypeError, ValueError) as e:
-        logger.error("Failed to serialize value for key '%s': %s", key, str(e))
+    except (TypeError, ValueError):
+        logger.exception("Failed to serialize value for key '%s'", key)
         return False
-    except Exception as e:
-        logger.error("Error setting cached value for key '%s': %s", key, str(e))
+    except Exception:
+        logger.exception("Error setting cached value for key '%s'", key)
         return False
 
 
@@ -481,8 +487,8 @@ async def delete_cached_value(key: str) -> bool:
             logger.debug("Key '%s' not found or already deleted", key)
         return deleted
 
-    except Exception as e:
-        logger.error("Error deleting cached value for key '%s': %s", key, str(e))
+    except Exception:
+        logger.exception("Error deleting cached value for key '%s'", key)
         return False
 
 
@@ -560,12 +566,8 @@ async def clear_cache_pattern(pattern: str) -> int:
         )
         return int(deleted_count)
 
-    except Exception as e:
-        logger.error(
-            "Error clearing cache pattern '%s': %s",
-            pattern,
-            str(e),
-        )
+    except Exception:
+        logger.exception("Error clearing cache pattern '%s'", pattern)
         return 0
 
 
@@ -725,20 +727,20 @@ async def invalidate_asset_cache(asset_id: str) -> int:
 # =============================================================================
 
 __all__ = [
+    "CACHE_TTL_FINGERPRINTS",
     # TTL Constants
     "CACHE_TTL_METADATA",
-    "CACHE_TTL_FINGERPRINTS",
     "CACHE_TTL_SESSION",
-    # Key Generation
-    "generate_cache_key",
     # Decorator
     "cache_decorator",
-    # Async Operations
-    "get_cached_value",
-    "set_cached_value",
-    "delete_cached_value",
     # Pattern Invalidation
     "clear_cache_pattern",
-    "invalidate_user_cache",
+    "delete_cached_value",
+    # Key Generation
+    "generate_cache_key",
+    # Async Operations
+    "get_cached_value",
     "invalidate_asset_cache",
+    "invalidate_user_cache",
+    "set_cached_value",
 ]

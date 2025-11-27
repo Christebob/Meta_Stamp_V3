@@ -57,25 +57,20 @@ class UploadServiceError(Exception):
     """Base exception for upload service errors."""
 
 
-
 class FileValidationError(UploadServiceError):
     """Exception raised when file validation fails."""
-
 
 
 class StorageError(UploadServiceError):
     """Exception raised when storage operations fail."""
 
 
-
 class UploadConfirmationError(UploadServiceError):
     """Exception raised when upload confirmation fails."""
 
 
-
 class URLProcessingError(UploadServiceError):
     """Exception raised when URL processing fails."""
-
 
 
 class UploadService:
@@ -558,11 +553,11 @@ class UploadService:
             return {
                 "asset_id": asset.id,
                 "file_name": asset.file_name,
-                "file_type": asset.file_type.value,
+                "file_type": str(asset.file_type),
                 "file_size": asset.file_size,
                 "mime_type": asset.mime_type,
                 "s3_key": asset.s3_key,
-                "upload_status": asset.upload_status.value,
+                "upload_status": str(asset.upload_status),
                 "metadata": extracted_metadata,
                 "created_at": asset.created_at.isoformat(),
             }
@@ -688,7 +683,7 @@ class UploadService:
                 expires_in,
             )
 
-            # Create Asset record with pending_upload status
+            # Create Asset record with queued status (pending presigned upload)
             asset_id = str(uuid.uuid4())
             asset = Asset(
                 id=asset_id,
@@ -699,7 +694,7 @@ class UploadService:
                 mime_type=content_type,
                 s3_key=object_key,
                 s3_bucket=self.settings.s3_bucket_name,
-                upload_status=UploadStatus.PENDING_UPLOAD,
+                upload_status=UploadStatus.QUEUED,
                 metadata={
                     "presigned_upload": True,
                     "expires_at": expiration_datetime.isoformat(),
@@ -834,9 +829,7 @@ class UploadService:
                     "Asset record not found in database for asset '%s'",
                     asset_id,
                 )
-                raise UploadConfirmationError(
-                    f"Asset record not found for asset_id: {asset_id}"
-                )
+                raise UploadConfirmationError(f"Asset record not found for asset_id: {asset_id}")
 
             # Extract actual file size from S3 metadata
             actual_file_size = s3_metadata.get("content_length", asset_doc.get("file_size", 0))
@@ -1013,9 +1006,7 @@ class UploadService:
             # Extract text metadata
             extracted_metadata = {}
             try:
-                extracted_metadata = await self.metadata.extract_text_metadata(
-                    str(temp_file_path)
-                )
+                extracted_metadata = await self.metadata.extract_text_metadata(str(temp_file_path))
             except Exception as metadata_error:
                 self.logger.warning(
                     "Text metadata extraction failed: %s",
@@ -1077,11 +1068,11 @@ class UploadService:
             return {
                 "asset_id": asset.id,
                 "file_name": asset.file_name,
-                "file_type": asset.file_type.value,
+                "file_type": str(asset.file_type),
                 "file_size": asset.file_size,
                 "mime_type": asset.mime_type,
                 "s3_key": asset.s3_key,
-                "upload_status": asset.upload_status.value,
+                "upload_status": str(asset.upload_status),
                 "metadata": extracted_metadata,
                 "created_at": asset.created_at.isoformat(),
             }
@@ -1095,9 +1086,7 @@ class UploadService:
                 "Error during text upload for '%s'",
                 filename,
             )
-            raise UploadServiceError(
-                f"Text upload failed for {filename}: {error!s}"
-            ) from error
+            raise UploadServiceError(f"Text upload failed for {filename}: {error!s}") from error
 
         finally:
             # Clean up temporary file
@@ -1212,11 +1201,7 @@ class UploadService:
 
             # Generate filename based on content type and title
             safe_title = (
-                title[:50]
-                .replace(" ", "_")
-                .replace("/", "_")
-                .replace("\\", "_")
-                .replace(":", "_")
+                title[:50].replace(" ", "_").replace("/", "_").replace("\\", "_").replace(":", "_")
             )
             filename = f"{platform}_{safe_title}.txt"
 
@@ -1294,12 +1279,12 @@ class UploadService:
             return {
                 "asset_id": asset.id,
                 "file_name": asset.file_name,
-                "file_type": asset.file_type.value,
+                "file_type": str(asset.file_type),
                 "file_size": asset.file_size,
                 "platform": platform,
                 "source_url": url,
                 "s3_key": asset.s3_key,
-                "upload_status": asset.upload_status.value,
+                "upload_status": str(asset.upload_status),
                 "metadata": combined_metadata,
                 "created_at": asset.created_at.isoformat(),
             }
@@ -1315,9 +1300,7 @@ class UploadService:
                 "Error during URL upload for '%s'",
                 url,
             )
-            raise UploadServiceError(
-                f"URL upload failed for {url}: {error!s}"
-            ) from error
+            raise UploadServiceError(f"URL upload failed for {url}: {error!s}") from error
 
         finally:
             # Clean up temporary file
