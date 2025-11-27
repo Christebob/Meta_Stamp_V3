@@ -407,7 +407,9 @@ export async function getCurrentUser(): Promise<User> {
   try {
     // Make authenticated request to get user profile
     // The apiClient automatically adds the Authorization header
-    const user = await apiClient.get<User>(AUTH_ENDPOINTS.ME);
+    // Note: The response interceptor in api.ts unwraps response.data automatically,
+    // so we need to cast the result to the expected type
+    const user = (await apiClient.get<User>(AUTH_ENDPOINTS.ME)) as unknown as User;
 
     // Validate the response
     if (!user || !user.id || !user.email) {
@@ -489,7 +491,9 @@ export async function refreshToken(): Promise<string> {
   try {
     // Request a new token from the backend
     // The backend will validate the current token and issue a new one
-    const response = await apiClient.post<TokenRefreshResponse>(AUTH_ENDPOINTS.REFRESH);
+    // Note: The response interceptor in api.ts unwraps response.data automatically,
+    // so we need to cast the result to the expected type
+    const response = (await apiClient.post<TokenRefreshResponse>(AUTH_ENDPOINTS.REFRESH)) as unknown as TokenRefreshResponse;
 
     // Validate the response
     if (!response || !response.token) {
