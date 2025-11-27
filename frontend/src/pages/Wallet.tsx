@@ -325,7 +325,7 @@ export default function Wallet(): JSX.Element {
   const [showValueCalculator, setShowValueCalculator] = useState<boolean>(false);
 
   /** Calculator input values for AI Touch Value™ */
-  const [calculatorInputs, setCalculatorInputs] = useState<CalculatorInputs>(
+  const [calculatorInputs] = useState<CalculatorInputs>(
     DEFAULT_CALCULATOR_INPUTS
   );
 
