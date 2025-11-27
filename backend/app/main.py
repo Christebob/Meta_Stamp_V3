@@ -28,7 +28,7 @@ Based on Agent Action Plan sections:
 - 0.10: Execution parameters and success criteria
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import uvicorn
 
@@ -264,7 +264,7 @@ async def health_check() -> dict:
     """
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "service": "META-STAMP V3 Backend",
     }
 
