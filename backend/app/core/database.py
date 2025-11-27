@@ -150,9 +150,7 @@ class DatabaseClient:
                     retry_delay *= 2  # Exponential backoff
 
             except ConnectionFailure:
-                logger.exception(
-                    f"MongoDB connection failure (attempt {attempt}/{max_retries})"
-                )
+                logger.exception(f"MongoDB connection failure (attempt {attempt}/{max_retries})")
                 if attempt < max_retries:
                     logger.warning(f"Retrying in {retry_delay} seconds...")
                     await asyncio.sleep(retry_delay)
@@ -367,9 +365,7 @@ class DatabaseClient:
             await assets.create_index("file_type", background=True)
             await assets.create_index("upload_status", background=True)
             # Compound index for common queries
-            await assets.create_index(
-                [("user_id", 1), ("created_at", -1)], background=True
-            )
+            await assets.create_index([("user_id", 1), ("created_at", -1)], background=True)
             logger.info(f"Created indexes on {ASSETS_COLLECTION} collection")
 
             # Fingerprints collection indexes
@@ -383,9 +379,7 @@ class DatabaseClient:
             await wallet.create_index("user_id", background=True)
             await wallet.create_index("created_at", background=True)
             # Compound index for transaction history queries
-            await wallet.create_index(
-                [("user_id", 1), ("created_at", -1)], background=True
-            )
+            await wallet.create_index([("user_id", 1), ("created_at", -1)], background=True)
             logger.info(f"Created indexes on {WALLET_COLLECTION} collection")
 
             # Analytics collection indexes
@@ -394,9 +388,7 @@ class DatabaseClient:
             await analytics.create_index("user_id", background=True)
             await analytics.create_index("created_at", background=True)
             # Compound index for user analytics queries
-            await analytics.create_index(
-                [("user_id", 1), ("created_at", -1)], background=True
-            )
+            await analytics.create_index([("user_id", 1), ("created_at", -1)], background=True)
             logger.info(f"Created indexes on {ANALYTICS_COLLECTION} collection")
 
             # Users collection indexes with unique constraints
@@ -413,8 +405,14 @@ class DatabaseClient:
             raise
 
 
-# Global singleton instance for database client
-_db_client: DatabaseClient | None = None
+# Container class for database client singleton to avoid global statements
+class _DatabaseClientContainer:
+    """Container for database client singleton to avoid global statements."""
+
+    client: DatabaseClient | None = None
+
+
+_container = _DatabaseClientContainer()
 
 
 async def init_db(settings: Settings | None = None) -> DatabaseClient:
@@ -434,11 +432,9 @@ async def init_db(settings: Settings | None = None) -> DatabaseClient:
     Raises:
         RuntimeError: If connection to MongoDB fails after all retries.
     """
-    global _db_client
-
-    if _db_client is not None:
+    if _container.client is not None:
         logger.warning("Database client already initialized, returning existing instance")
-        return _db_client
+        return _container.client
 
     # Use provided settings or create new instance
     if settings is None:
@@ -446,22 +442,22 @@ async def init_db(settings: Settings | None = None) -> DatabaseClient:
 
     logger.info("Initializing MongoDB database client...")
 
-    _db_client = DatabaseClient(settings)
+    _container.client = DatabaseClient(settings)
 
     # Connect to MongoDB
-    connected = await _db_client.connect()
+    connected = await _container.client.connect()
     if not connected:
-        _db_client = None
+        _container.client = None
         raise RuntimeError(
             "Failed to establish MongoDB connection. "
             "Check mongodb_uri configuration and server availability."
         )
 
     # Create indexes for optimized queries
-    await _db_client.create_indexes()
+    await _container.client.create_indexes()
 
     logger.info("MongoDB database client initialization complete")
-    return _db_client
+    return _container.client
 
 
 async def close_db() -> None:
@@ -471,12 +467,10 @@ async def close_db() -> None:
     Gracefully closes MongoDB connection and releases resources.
     This function should be called during FastAPI application shutdown.
     """
-    global _db_client
-
-    if _db_client is not None:
+    if _container.client is not None:
         logger.info("Closing MongoDB database client...")
-        await _db_client.close()
-        _db_client = None
+        await _container.client.close()
+        _container.client = None
         logger.info("MongoDB database client closed")
     else:
         logger.warning("close_db called but no database client exists")
@@ -495,11 +489,11 @@ def get_db_client() -> DatabaseClient:
     Raises:
         RuntimeError: If database client has not been initialized.
     """
-    if _db_client is None:
+    if _container.client is None:
         raise RuntimeError(
             "Database client not initialized. Call init_db() first during application startup."
         )
-    return _db_client
+    return _container.client
 
 
 def get_database() -> AsyncIOMotorDatabase:

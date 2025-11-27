@@ -37,19 +37,30 @@ Usage:
 import asyncio
 import json
 import logging
+
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 import redis.asyncio as redis
-from redis.exceptions import ConnectionError, RedisError
+
+from redis.exceptions import ConnectionError as RedisConnectionError, RedisError
 
 from app.config import Settings, get_settings
+
 
 # Configure module logger
 logger = logging.getLogger(__name__)
 
+
 # Module-level singleton instance
-_redis_client: Optional["RedisClient"] = None
+class _RedisClientContainer:
+    """Container for Redis client singleton to avoid global statements."""
+
+    client: "RedisClient | None" = None
+
+
+_container = _RedisClientContainer()
 
 
 class RedisClient:
@@ -86,7 +97,7 @@ class RedisClient:
         ```
     """
 
-    def __init__(self, settings: Optional[Settings] = None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         """
         Initialize RedisClient with application settings.
 
@@ -99,7 +110,7 @@ class RedisClient:
         - Connection pool parameters for efficient connection reuse
         """
         self.settings = settings or get_settings()
-        self._client: Optional[redis.Redis] = None
+        self._client: redis.Redis | None = None
         self._connected: bool = False
 
         logger.info(
@@ -158,7 +169,7 @@ class RedisClient:
                 logger.info("Successfully connected to Redis")
                 return True
 
-            except ConnectionError as e:
+            except RedisConnectionError as e:
                 logger.warning(
                     "Redis connection failed (attempt %d/%d): %s",
                     attempt,
@@ -170,12 +181,10 @@ class RedisClient:
                     logger.info("Retrying in %.1f seconds...", delay)
                     await asyncio.sleep(delay)
                 else:
-                    logger.error(
-                        "Failed to connect to Redis after %d attempts", max_retries
-                    )
+                    logger.exception("Failed to connect to Redis after %d attempts", max_retries)
 
-            except RedisError as e:
-                logger.error("Redis error during connection: %s", str(e))
+            except RedisError:
+                logger.exception("Redis error during connection")
                 if attempt < max_retries:
                     delay = base_delay * (2 ** (attempt - 1))
                     await asyncio.sleep(delay)
@@ -194,8 +203,8 @@ class RedisClient:
             try:
                 await self._client.close()
                 logger.info("Redis connection closed")
-            except RedisError as e:
-                logger.error("Error closing Redis connection: %s", str(e))
+            except RedisError:
+                logger.exception("Error closing Redis connection")
             finally:
                 self._client = None
                 self._connected = False
@@ -213,7 +222,7 @@ class RedisClient:
         try:
             result = await self._client.ping()
             return result is True or result == "PONG"
-        except (RedisError, ConnectionError) as e:
+        except (RedisError, RedisConnectionError) as e:
             logger.warning("Redis ping failed: %s", str(e))
             self._connected = False
             return False
@@ -236,7 +245,7 @@ class RedisClient:
     # Core Operations
     # =========================================================================
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         """
         Get value by key from Redis.
 
@@ -251,15 +260,12 @@ class RedisClient:
             return None
 
         try:
-            value = await self._client.get(key)
-            return value
-        except RedisError as e:
-            logger.error("Failed to get key '%s': %s", key, str(e))
+            return await self._client.get(key)
+        except RedisError:
+            logger.exception("Failed to get key '%s'", key)
             return None
 
-    async def set(
-        self, key: str, value: Any, ttl: Optional[int] = None
-    ) -> bool:
+    async def set(self, key: str, value: Any, ttl: int | None = None) -> bool:
         """
         Set value with optional TTL.
 
@@ -287,8 +293,8 @@ class RedisClient:
             logger.debug("Set key '%s' with TTL=%s", key, ttl)
             return True
 
-        except RedisError as e:
-            logger.error("Failed to set key '%s': %s", key, str(e))
+        except RedisError:
+            logger.exception("Failed to set key '%s'", key)
             return False
 
     async def delete(self, key: str) -> bool:
@@ -311,8 +317,8 @@ class RedisClient:
             if deleted:
                 logger.debug("Deleted key '%s'", key)
             return deleted
-        except RedisError as e:
-            logger.error("Failed to delete key '%s': %s", key, str(e))
+        except RedisError:
+            logger.exception("Failed to delete key '%s'", key)
             return False
 
     async def exists(self, key: str) -> bool:
@@ -332,8 +338,8 @@ class RedisClient:
         try:
             result = await self._client.exists(key)
             return result > 0
-        except RedisError as e:
-            logger.error("Failed to check existence of key '%s': %s", key, str(e))
+        except RedisError:
+            logger.exception("Failed to check existence of key '%s'", key)
             return False
 
     async def expire(self, key: str, seconds: int) -> bool:
@@ -354,8 +360,8 @@ class RedisClient:
         try:
             result = await self._client.expire(key, seconds)
             return bool(result)
-        except RedisError as e:
-            logger.error("Failed to set expiration on key '%s': %s", key, str(e))
+        except RedisError:
+            logger.exception("Failed to set expiration on key '%s'", key)
             return False
 
     async def ttl(self, key: str) -> int:
@@ -373,17 +379,16 @@ class RedisClient:
             return -2
 
         try:
-            result = await self._client.ttl(key)
-            return result
-        except RedisError as e:
-            logger.error("Failed to get TTL for key '%s': %s", key, str(e))
+            return await self._client.ttl(key)
+        except RedisError:
+            logger.exception("Failed to get TTL for key '%s'", key)
             return -2
 
     # =========================================================================
     # JSON Operations
     # =========================================================================
 
-    async def get_json(self, key: str) -> Optional[Any]:
+    async def get_json(self, key: str) -> Any | None:
         """
         Get and deserialize JSON value from Redis.
 
@@ -407,16 +412,14 @@ class RedisClient:
                 return None
 
             return json.loads(value)
-        except json.JSONDecodeError as e:
-            logger.error("Failed to decode JSON for key '%s': %s", key, str(e))
+        except json.JSONDecodeError:
+            logger.exception("Failed to decode JSON for key '%s'", key)
             return None
-        except RedisError as e:
-            logger.error("Failed to get JSON key '%s': %s", key, str(e))
+        except RedisError:
+            logger.exception("Failed to get JSON key '%s'", key)
             return None
 
-    async def set_json(
-        self, key: str, value: Any, ttl: Optional[int] = None
-    ) -> bool:
+    async def set_json(self, key: str, value: Any, ttl: int | None = None) -> bool:
         """
         Serialize and set JSON value in Redis.
 
@@ -446,18 +449,18 @@ class RedisClient:
             logger.debug("Set JSON key '%s' with TTL=%s", key, ttl)
             return True
 
-        except (TypeError, ValueError) as e:
-            logger.error("Failed to serialize JSON for key '%s': %s", key, str(e))
+        except (TypeError, ValueError):
+            logger.exception("Failed to serialize JSON for key '%s'", key)
             return False
-        except RedisError as e:
-            logger.error("Failed to set JSON key '%s': %s", key, str(e))
+        except RedisError:
+            logger.exception("Failed to set JSON key '%s'", key)
             return False
 
     # =========================================================================
     # Hash Operations (for session management)
     # =========================================================================
 
-    async def hget(self, name: str, key: str) -> Optional[str]:
+    async def hget(self, name: str, key: str) -> str | None:
         """
         Get a field value from a Redis hash.
 
@@ -473,10 +476,9 @@ class RedisClient:
             return None
 
         try:
-            value = await self._client.hget(name, key)
-            return value
-        except RedisError as e:
-            logger.error("Failed to hget '%s.%s': %s", name, key, str(e))
+            return await self._client.hget(name, key)
+        except RedisError:
+            logger.exception("Failed to hget '%s.%s'", name, key)
             return None
 
     async def hset(self, name: str, key: str, value: Any) -> bool:
@@ -500,11 +502,11 @@ class RedisClient:
             await self._client.hset(name, key, str_value)
             logger.debug("Set hash field '%s.%s'", name, key)
             return True
-        except RedisError as e:
-            logger.error("Failed to hset '%s.%s': %s", name, key, str(e))
+        except RedisError:
+            logger.exception("Failed to hset '%s.%s'", name, key)
             return False
 
-    async def hgetall(self, name: str) -> Dict[str, str]:
+    async def hgetall(self, name: str) -> dict[str, str]:
         """
         Get all fields and values from a Redis hash.
 
@@ -523,8 +525,8 @@ class RedisClient:
         try:
             result = await self._client.hgetall(name)
             return result or {}
-        except RedisError as e:
-            logger.error("Failed to hgetall '%s': %s", name, str(e))
+        except RedisError:
+            logger.exception("Failed to hgetall '%s'", name)
             return {}
 
     async def hdel(self, name: str, *keys: str) -> int:
@@ -549,8 +551,8 @@ class RedisClient:
             result = await self._client.hdel(name, *keys)
             logger.debug("Deleted %d fields from hash '%s'", result, name)
             return result
-        except RedisError as e:
-            logger.error("Failed to hdel from '%s': %s", name, str(e))
+        except RedisError:
+            logger.exception("Failed to hdel from '%s'", name)
             return 0
 
 
@@ -622,7 +624,11 @@ def cache_result(
             # Add positional arguments to key (skip 'self' if present)
             for i, arg in enumerate(args):
                 # Skip 'self' parameter for methods
-                if i == 0 and hasattr(arg, "__class__") and not isinstance(arg, (str, int, float, bool)):
+                if (
+                    i == 0
+                    and hasattr(arg, "__class__")
+                    and not isinstance(arg, (str, int, float, bool))
+                ):
                     continue
                 key_parts.append(str(arg))
 
@@ -664,7 +670,7 @@ def cache_result(
 # =============================================================================
 
 
-async def init_redis(settings: Optional[Settings] = None) -> RedisClient:
+async def init_redis(settings: Settings | None = None) -> RedisClient:
     """
     Initialize and connect the global Redis client singleton.
 
@@ -691,22 +697,20 @@ async def init_redis(settings: Optional[Settings] = None) -> RedisClient:
             await close_redis()
         ```
     """
-    global _redis_client
-
-    if _redis_client is not None:
+    if _container.client is not None:
         logger.warning("Redis client already initialized")
-        return _redis_client
+        return _container.client
 
     logger.info("Initializing Redis client...")
-    _redis_client = RedisClient(settings)
+    _container.client = RedisClient(settings)
 
-    connected = await _redis_client.connect()
+    connected = await _container.client.connect()
     if not connected:
         logger.error("Failed to initialize Redis client")
         raise RuntimeError("Failed to connect to Redis after multiple attempts")
 
     logger.info("Redis client initialized successfully")
-    return _redis_client
+    return _container.client
 
 
 async def close_redis() -> None:
@@ -727,18 +731,16 @@ async def close_redis() -> None:
             await close_redis()
         ```
     """
-    global _redis_client
-
-    if _redis_client is not None:
+    if _container.client is not None:
         logger.info("Closing Redis client...")
-        await _redis_client.close()
-        _redis_client = None
+        await _container.client.close()
+        _container.client = None
         logger.info("Redis client closed")
     else:
         logger.debug("Redis client already closed or not initialized")
 
 
-def get_redis_client() -> Optional[RedisClient]:
+def get_redis_client() -> RedisClient | None:
     """
     Get the global Redis client singleton instance.
 
@@ -758,13 +760,11 @@ def get_redis_client() -> Optional[RedisClient]:
             await client.set("key", "value", ttl=300)
         ```
     """
-    global _redis_client
-
-    if _redis_client is None:
+    if _container.client is None:
         logger.warning("Redis client not initialized. Call init_redis() first.")
         return None
 
-    return _redis_client
+    return _container.client
 
 
 # =============================================================================
