@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Upload Context Provider for META-STAMP V3
  *

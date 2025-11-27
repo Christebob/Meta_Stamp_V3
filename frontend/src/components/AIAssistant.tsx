@@ -351,7 +351,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
     isLoading,
     isStreaming,
     error,
-    conversationId,
     sendMessage,
     clearConversation,
   } = useAIAssistant();
@@ -441,7 +440,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
 
       try {
         await sendMessage(textToSend);
-      } catch (err) {
+      } catch {
         // Error is handled by the hook, but we can show additional feedback
         setLocalError('Failed to send message. Please try again.');
         // Restore input text so user doesn't lose their message
