@@ -16,7 +16,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { assistantService } from '@/services/assistantService';
+import assistantService from '@/services/assistantService';
 import { storageService } from '@/services/storageService';
 
 // ============================================================================
@@ -512,15 +512,20 @@ export function useAIAssistant(): UseAIAssistantReturn {
                 );
 
                 if (toolIndex !== -1) {
-                  toolCalls[toolIndex] = {
-                    ...toolCalls[toolIndex],
-                    result: chunk.toolCall.result ?? chunk.content,
-                  };
+                  const existingToolCall = toolCalls[toolIndex];
+                  if (existingToolCall) {
+                    const updatedToolCall: ToolCall = {
+                      name: existingToolCall.name,
+                      arguments: existingToolCall.arguments,
+                      result: chunk.toolCall.result ?? chunk.content,
+                    };
+                    toolCalls[toolIndex] = updatedToolCall;
 
-                  if (streamingMessageIdRef.current) {
-                    updateMessage(streamingMessageIdRef.current, {
-                      toolCalls: [...toolCalls],
-                    });
+                    if (streamingMessageIdRef.current) {
+                      updateMessage(streamingMessageIdRef.current, {
+                        toolCalls: [...toolCalls],
+                      });
+                    }
                   }
                 }
               }
@@ -658,10 +663,14 @@ export function useAIAssistant(): UseAIAssistantReturn {
       // Find and remove the last two messages (user + assistant)
       if (prev.length >= 2) {
         const lastTwo = prev.slice(-2);
+        const secondToLast = lastTwo[0];
+        const last = lastTwo[1];
         // Verify the pattern is correct (user then assistant)
         if (
-          lastTwo[0].role === 'user' &&
-          lastTwo[1].role === 'assistant'
+          secondToLast &&
+          last &&
+          secondToLast.role === 'user' &&
+          last.role === 'assistant'
         ) {
           return prev.slice(0, -2);
         }
