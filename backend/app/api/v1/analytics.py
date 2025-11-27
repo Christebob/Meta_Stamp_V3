@@ -6,8 +6,8 @@ creator compensation based on their content's contribution to AI model training.
 
 The calculation follows the exact formula specified in the Agent Action Plan:
 
-    AI Touch Value™ = ModelEarnings × (TrainingContributionScore/100)
-                      × (UsageExposureScore/100) × 0.25
+    AI Touch Value(TM) = ModelEarnings x (TrainingContributionScore/100)
+                         x (UsageExposureScore/100) x 0.25
 
 Where:
     - ModelEarnings: Total earnings from the AI model in USD (≥ 0)
@@ -37,14 +37,17 @@ Example:
     >>> {
     >>>     "calculated_value": 1500.0,
     >>>     "equity_factor": 0.25,
-    >>>     "formula_breakdown": "$10,000.00 × (75.0/100) × (80.0/100) × 0.25 = $1,500.00"
+    >>>     "formula_breakdown": "$10,000.00 x (75.0/100) x (80.0/100) x 0.25 = $1,500.00"
     >>> }
 """
 
 import logging
-from datetime import UTC, datetime
-from typing import Any, Optional
 
+from datetime import UTC, datetime
+from typing import Any
+
+from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
@@ -89,6 +92,9 @@ EQUITY_FACTOR: float = 0.25
 # Valid score range (0-100)
 SCORE_MIN: float = 0.0
 SCORE_MAX: float = 100.0
+
+# Pagination limits
+PAGINATION_MAX_LIMIT: int = 100
 
 
 # =============================================================================
@@ -141,7 +147,7 @@ class PredictRequest(BaseModel):
         description="Usage exposure score from 0-100 representing content exposure/usage.",
         json_schema_extra={"example": 80.0},
     )
-    asset_id: Optional[str] = Field(
+    asset_id: str | None = Field(
         default=None,
         description="Optional associated asset ID for linking calculation to a specific asset.",
         json_schema_extra={"example": "507f1f77bcf86cd799439011"},
@@ -173,9 +179,7 @@ class PredictRequest(BaseModel):
             ) from e
 
         if earnings < 0:
-            raise ValueError(
-                f"model_earnings must be non-negative (≥ 0), got {earnings}"
-            )
+            raise ValueError(f"model_earnings must be non-negative (≥ 0), got {earnings}")
 
         return earnings
 
@@ -271,7 +275,7 @@ class PredictResponse(BaseModel):
         ...     usage_exposure_score=80.0,
         ...     calculation_id="507f1f77bcf86cd799439011",
         ...     timestamp="2025-01-15T10:30:00Z",
-        ...     formula_breakdown="$10,000.00 × (75.0/100) × (80.0/100) × 0.25 = $1,500.00"
+        ...     formula_breakdown="$10,000.00 x (75.0/100) x (80.0/100) x 0.25 = $1,500.00"
         ... )
     """
 
@@ -300,7 +304,7 @@ class PredictResponse(BaseModel):
         description="Input usage exposure score (0-100)",
         json_schema_extra={"example": 80.0},
     )
-    calculation_id: Optional[str] = Field(
+    calculation_id: str | None = Field(
         default=None,
         description="MongoDB ObjectId of stored calculation record",
         json_schema_extra={"example": "507f1f77bcf86cd799439011"},
@@ -313,14 +317,14 @@ class PredictResponse(BaseModel):
     formula_breakdown: str = Field(
         ...,
         description="Human-readable formula breakdown for transparency and auditing",
-        json_schema_extra={"example": "$10,000.00 × (75.0/100) × (80.0/100) × 0.25 = $1,500.00"},
+        json_schema_extra={"example": "$10,000.00 x (75.0/100) x (80.0/100) x 0.25 = $1,500.00"},
     )
-    asset_id: Optional[str] = Field(
+    asset_id: str | None = Field(
         default=None,
         description="Associated asset ID if provided in request",
         json_schema_extra={"example": "507f1f77bcf86cd799439011"},
     )
-    user_id: Optional[str] = Field(
+    user_id: str | None = Field(
         default=None,
         description="User ID who performed the calculation",
         json_schema_extra={"example": "507f1f77bcf86cd799439011"},
@@ -345,7 +349,7 @@ class ErrorResponse(BaseModel):
         default="CALCULATION_ERROR",
         description="Machine-readable error code",
     )
-    field: Optional[str] = Field(
+    field: str | None = Field(
         default=None,
         description="Field name that caused the error (if applicable)",
     )
@@ -393,12 +397,12 @@ def generate_formula_breakdown(
     Example:
         >>> breakdown = generate_formula_breakdown(10000.0, 75.0, 80.0, 1500.0)
         >>> print(breakdown)
-        "$10,000.00 × (75.0/100) × (80.0/100) × 0.25 = $1,500.00"
+        "$10,000.00 x (75.0/100) x (80.0/100) x 0.25 = $1,500.00"
     """
     return (
-        f"{format_currency(model_earnings)} × "
-        f"({contribution_score}/100) × "
-        f"({exposure_score}/100) × "
+        f"{format_currency(model_earnings)} x "
+        f"({contribution_score}/100) x "
+        f"({exposure_score}/100) x "
         f"{EQUITY_FACTOR} = "
         f"{format_currency(calculated_value)}"
     )
@@ -415,9 +419,9 @@ def generate_formula_breakdown(
     status_code=status.HTTP_200_OK,
     summary="Calculate AI Touch Value™",
     description=(
-        "Calculate the AI Touch Value™ compensation estimate based on the formula: "
-        "AI Touch Value™ = ModelEarnings × (TrainingContributionScore/100) × "
-        "(UsageExposureScore/100) × 0.25. The equity factor is fixed at 25%."
+        "Calculate the AI Touch Value(TM) compensation estimate based on the formula: "
+        "AI Touch Value(TM) = ModelEarnings x (TrainingContributionScore/100) x "
+        "(UsageExposureScore/100) x 0.25. The equity factor is fixed at 25%."
     ),
     responses={
         status.HTTP_200_OK: {
@@ -431,7 +435,7 @@ def generate_formula_breakdown(
         status.HTTP_401_UNAUTHORIZED: {
             "description": "Authentication required",
         },
-        status.HTTP_422_UNPROCESSABLE_ENTITY: {
+        422: {
             "description": "Validation error",
         },
         status.HTTP_500_INTERNAL_SERVER_ERROR: {
@@ -445,14 +449,14 @@ async def predict_ai_touch_value(
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> JSONResponse:
     """
-    Calculate AI Touch Value™ using the exact formula.
+    Calculate AI Touch Value(TM) using the exact formula.
 
-    This endpoint calculates the AI Touch Value™ compensation estimate for creators
+    This endpoint calculates the AI Touch Value(TM) compensation estimate for creators
     based on their content's contribution to AI model training. The calculation
     follows the exact formula specified in the Agent Action Plan:
 
-        AI Touch Value™ = ModelEarnings × (TrainingContributionScore/100)
-                          × (UsageExposureScore/100) × 0.25
+        AI Touch Value(TM) = ModelEarnings x (TrainingContributionScore/100)
+                             x (UsageExposureScore/100) x 0.25
 
     The calculation is stored in MongoDB for historical tracking and trend analysis.
 
@@ -491,7 +495,7 @@ async def predict_ai_touch_value(
             "usage_exposure_score": 80.0,
             "calculation_id": "507f1f77bcf86cd799439012",
             "timestamp": "2025-01-15T10:30:00+00:00",
-            "formula_breakdown": "$10,000.00 × (75.0/100) × (80.0/100) × 0.25 = $1,500.00",
+            "formula_breakdown": "$10,000.00 x (75.0/100) x (80.0/100) x 0.25 = $1,500.00",
             "asset_id": "507f1f77bcf86cd799439011",
             "user_id": "507f1f77bcf86cd799439010"
         }
@@ -570,21 +574,21 @@ async def predict_ai_touch_value(
             detail=str(e),
         ) from e
 
-    except RuntimeError as e:
+    except RuntimeError:
         # Database not initialized or unavailable
-        logger.error(f"Database error during AI Touch Value™ calculation: {e}")
+        logger.exception("Database error during AI Touch Value(TM) calculation")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database service unavailable. Please try again later.",
-        ) from e
+        ) from None
 
-    except Exception as e:
+    except Exception:
         # Unexpected errors
-        logger.exception(f"Unexpected error during AI Touch Value™ calculation: {e}")
+        logger.exception("Unexpected error during AI Touch Value(TM) calculation")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during calculation. Please try again.",
-        ) from e
+        ) from None
 
 
 @router.get(
@@ -597,7 +601,7 @@ async def predict_ai_touch_value(
 async def get_calculation_history(
     limit: int = 10,
     offset: int = 0,
-    asset_id: Optional[str] = None,
+    asset_id: str | None = None,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> JSONResponse:
     """
@@ -643,10 +647,10 @@ async def get_calculation_history(
         )
 
     # Validate pagination parameters
-    if limit < 1 or limit > 100:
+    if limit < 1 or limit > PAGINATION_MAX_LIMIT:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Limit must be between 1 and 100",
+            detail=f"Limit must be between 1 and {PAGINATION_MAX_LIMIT}",
         )
     if offset < 0:
         raise HTTPException(
@@ -670,9 +674,9 @@ async def get_calculation_history(
             query_filter["asset_id"] = asset_id
 
         # Query with pagination, sorted by created_at descending
-        cursor = analytics_collection.find(query_filter).sort(
-            "created_at", -1
-        ).skip(offset).limit(limit)
+        cursor = (
+            analytics_collection.find(query_filter).sort("created_at", -1).skip(offset).limit(limit)
+        )
 
         # Convert cursor to list
         records = await cursor.to_list(length=limit)
@@ -692,41 +696,41 @@ async def get_calculation_history(
                 calculated_value=calculated_value,
             )
 
-            history.append({
-                "calculated_value": calculated_value,
-                "equity_factor": calc.equity_factor,
-                "model_earnings": float(calc.model_earnings),
-                "training_contribution_score": calc.training_contribution_score,
-                "usage_exposure_score": calc.usage_exposure_score,
-                "calculation_id": calc.id,
-                "timestamp": calc.created_at.isoformat() if calc.created_at else None,
-                "formula_breakdown": formula_breakdown,
-                "asset_id": calc.asset_id,
-                "user_id": calc.user_id,
-            })
+            history.append(
+                {
+                    "calculated_value": calculated_value,
+                    "equity_factor": calc.equity_factor,
+                    "model_earnings": float(calc.model_earnings),
+                    "training_contribution_score": calc.training_contribution_score,
+                    "usage_exposure_score": calc.usage_exposure_score,
+                    "calculation_id": calc.id,
+                    "timestamp": calc.created_at.isoformat() if calc.created_at else None,
+                    "formula_breakdown": formula_breakdown,
+                    "asset_id": calc.asset_id,
+                    "user_id": calc.user_id,
+                }
+            )
 
-        logger.info(
-            f"Retrieved {len(history)} calculation records for user={user_id}"
-        )
+        logger.info(f"Retrieved {len(history)} calculation records for user={user_id}")
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=history,
         )
 
-    except RuntimeError as e:
-        logger.error(f"Database error fetching calculation history: {e}")
+    except RuntimeError:
+        logger.exception("Database error fetching calculation history")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database service unavailable. Please try again later.",
-        ) from e
+        ) from None
 
-    except Exception as e:
-        logger.exception(f"Unexpected error fetching calculation history: {e}")
+    except Exception:
+        logger.exception("Unexpected error fetching calculation history")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred. Please try again.",
-        ) from e
+        ) from None
 
 
 @router.get(
@@ -762,14 +766,9 @@ async def get_calculation_by_id(
             detail="Invalid user authentication data",
         )
 
-    logger.info(
-        f"Fetching calculation {calculation_id} for user={user_id}"
-    )
+    logger.info(f"Fetching calculation {calculation_id} for user={user_id}")
 
     try:
-        from bson import ObjectId
-        from bson.errors import InvalidId
-
         # Validate calculation_id format
         try:
             obj_id = ObjectId(calculation_id)
@@ -777,17 +776,19 @@ async def get_calculation_by_id(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid calculation ID format",
-            )
+            ) from None
 
         # Get database and analytics collection
         database = get_database()
         analytics_collection = database["analytics"]
 
         # Find the calculation by ID and user_id (security check)
-        record = await analytics_collection.find_one({
-            "_id": obj_id,
-            "user_id": user_id,
-        })
+        record = await analytics_collection.find_one(
+            {
+                "_id": obj_id,
+                "user_id": user_id,
+            }
+        )
 
         if not record:
             raise HTTPException(
@@ -829,16 +830,16 @@ async def get_calculation_by_id(
     except HTTPException:
         raise
 
-    except RuntimeError as e:
-        logger.error(f"Database error fetching calculation: {e}")
+    except RuntimeError:
+        logger.exception("Database error fetching calculation")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database service unavailable. Please try again later.",
-        ) from e
+        ) from None
 
-    except Exception as e:
-        logger.exception(f"Unexpected error fetching calculation: {e}")
+    except Exception:
+        logger.exception("Unexpected error fetching calculation")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred. Please try again.",
-        ) from e
+        ) from None
