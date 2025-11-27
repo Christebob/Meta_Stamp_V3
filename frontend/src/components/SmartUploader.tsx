@@ -306,7 +306,7 @@ const SmartUploader: React.FC<SmartUploaderProps> = ({
 
     if (completedTasks.length === 0) return;
 
-    const timers: NodeJS.Timeout[] = [];
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
     completedTasks.forEach((task) => {
       if (task.completedAt) {
@@ -365,7 +365,8 @@ const SmartUploader: React.FC<SmartUploaderProps> = ({
     tasksToStart.forEach((task) => {
       startUpload(task);
     });
-  }, [disabled, maxConcurrentUploads, uploadQueue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disabled, maxConcurrentUploads, uploadQueue]); // startUpload is intentionally omitted to avoid circular dependency
 
   /**
    * Updates an upload task in the queue
@@ -738,7 +739,8 @@ const SmartUploader: React.FC<SmartUploaderProps> = ({
             Active Uploads
             {activeUploadsRef.current > 0 && (
               <span className="ml-2 text-sm font-normal text-gray-500">
-                ({activeUploadsRef.current} of {maxConcurrentUploads} slots used)
+                ({activeUploadsRef.current} of {maxConcurrentUploads} slots
+                used)
               </span>
             )}
           </h3>
