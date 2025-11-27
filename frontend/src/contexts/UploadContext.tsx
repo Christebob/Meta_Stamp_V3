@@ -12,7 +12,7 @@
  * @module contexts/UploadContext
  */
 
-import React, {
+import {
   createContext,
   useState,
   useEffect,
