@@ -206,7 +206,7 @@ function parseSSEData(line: string): StreamChunk | null {
     }
 
     return null;
-  } catch (error) {
+  } catch {
     // If JSON parsing fails, treat the line as plain text token
     return {
       type: 'token',
@@ -538,27 +538,28 @@ export async function getConversationHistory(
   try {
     // Use apiClient.get() for authenticated request with retry logic
     // The apiClient automatically adds the Authorization header and handles errors
+    // Note: The apiClient response interceptor unwraps the data, so the response
+    // is the actual data, not an AxiosResponse wrapper
     const response = await apiClient.get<ConversationHistory>(
       `/api/v1/assistant/conversations/${sanitizedId}`
     );
 
+    // The apiClient interceptor unwraps AxiosResponse.data, so we cast accordingly
+    // This handles the transformed response from our interceptor
+    const data = response as unknown as ConversationHistory | Message[];
+
     // Handle the response - apiClient unwraps the data automatically
     // but we need to handle both wrapped and unwrapped responses
-    if (response && typeof response === 'object') {
-      // If response has messages array directly
-      if (Array.isArray(response.messages)) {
-        return response.messages;
-      }
-
-      // If response is the full ConversationHistory object
-      if ('messages' in response && Array.isArray((response as ConversationHistory).messages)) {
-        return (response as ConversationHistory).messages;
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      // If data is a ConversationHistory object with messages array
+      if ('messages' in data && Array.isArray(data.messages)) {
+        return data.messages;
       }
     }
 
     // If response is somehow an array of messages directly
-    if (Array.isArray(response)) {
-      return response as Message[];
+    if (Array.isArray(data)) {
+      return data as Message[];
     }
 
     // Return empty array if response format is unexpected

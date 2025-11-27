@@ -129,7 +129,11 @@ export class WalletServiceError extends Error {
     // Maintain proper stack trace in V8 environments (Chrome, Node.js)
     // The captureStackTrace method is V8-specific and not in standard TS types
     const ErrorWithCapture = Error as typeof Error & {
-      captureStackTrace?: (targetObject: object, constructorOpt?: Function) => void;
+      captureStackTrace?: (
+        targetObject: object,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        constructorOpt?: new (...args: any[]) => object
+      ) => void;
     };
     if (typeof ErrorWithCapture.captureStackTrace === 'function') {
       ErrorWithCapture.captureStackTrace(this, WalletServiceError);
