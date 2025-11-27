@@ -95,10 +95,11 @@ export async function getAssets(
 
   // Make API request with query parameters
   // Note: apiClient.get returns the response data directly due to response interceptor
-  const response = await apiClient.get<PaginatedResponse<Asset>>(
+  // TypeScript doesn't recognize this transformation, so we use type assertion
+  const response = (await apiClient.get<PaginatedResponse<Asset>>(
     ASSETS_BASE_URL,
     { params }
-  );
+  )) as unknown as PaginatedResponse<Asset>;
 
   return response;
 }
@@ -143,9 +144,10 @@ export async function getAsset(assetId: string): Promise<Asset> {
 
   // Make API request for specific asset
   // Note: apiClient.get returns the response data directly due to response interceptor
-  const response = await apiClient.get<Asset>(
+  // TypeScript doesn't recognize this transformation, so we use type assertion
+  const response = (await apiClient.get<Asset>(
     `${ASSETS_BASE_URL}/${encodeURIComponent(trimmedId)}`
-  );
+  )) as unknown as Asset;
 
   return response;
 }
@@ -237,9 +239,10 @@ export async function getFingerprint(fingerprintId: string): Promise<Fingerprint
 
   // Make API request for specific fingerprint
   // Note: apiClient.get returns the response data directly due to response interceptor
-  const response = await apiClient.get<Fingerprint>(
+  // TypeScript doesn't recognize this transformation, so we use type assertion
+  const response = (await apiClient.get<Fingerprint>(
     `${FINGERPRINT_BASE_URL}/${encodeURIComponent(trimmedId)}`
-  );
+  )) as unknown as Fingerprint;
 
   return response;
 }
