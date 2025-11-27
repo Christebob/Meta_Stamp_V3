@@ -35,11 +35,13 @@ Usage:
 
 import logging
 import time
+
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import uvicorn
+
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -56,6 +58,9 @@ from app.core.redis_client import close_redis, init_redis
 
 # Configure module logger
 logger = logging.getLogger(__name__)
+
+# HTTP status code constants
+HTTP_ERROR_THRESHOLD = 400  # Status codes >= 400 indicate errors
 
 
 def configure_logging(log_level: str) -> None:
@@ -101,7 +106,7 @@ def configure_logging(log_level: str) -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     """
     Manage application lifecycle events for startup and shutdown.
 
@@ -139,7 +144,7 @@ async def lifespan(app: FastAPI):
         await init_db(settings)
         logger.info("MongoDB connection established successfully")
     except Exception as e:
-        logger.error(f"Failed to initialize MongoDB: {e}")
+        logger.exception("Failed to initialize MongoDB")
         raise RuntimeError(f"MongoDB initialization failed: {e}") from e
 
     # Initialize Redis connection
@@ -147,8 +152,8 @@ async def lifespan(app: FastAPI):
         logger.info("Initializing Redis connection...")
         await init_redis(settings)
         logger.info("Redis connection established successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize Redis: {e}")
+    except Exception:
+        logger.exception("Failed to initialize Redis")
         # Redis is important but not critical - log warning and continue
         logger.warning("Application will continue without Redis caching")
 
@@ -169,16 +174,16 @@ async def lifespan(app: FastAPI):
         logger.info("Closing Redis connection...")
         await close_redis()
         logger.info("Redis connection closed successfully")
-    except Exception as e:
-        logger.error(f"Error closing Redis connection: {e}")
+    except Exception:
+        logger.exception("Error closing Redis connection")
 
     # Close MongoDB connection
     try:
         logger.info("Closing MongoDB connection...")
         await close_db()
         logger.info("MongoDB connection closed successfully")
-    except Exception as e:
-        logger.error(f"Error closing MongoDB connection: {e}")
+    except Exception:
+        logger.exception("Error closing MongoDB connection")
 
     logger.info("=" * 60)
     logger.info("META-STAMP V3 API Shutdown Complete")
@@ -248,18 +253,17 @@ async def request_logging_middleware(request: Request, call_next) -> Response:
     start_time = time.perf_counter()
 
     # Log incoming request (debug level to avoid noise in production)
-    logger.debug(
-        f"Request started: {request.method} {request.url.path} "
-        f"[Request-ID: {request_id}]"
-    )
+    logger.debug(f"Request started: {request.method} {request.url.path} [Request-ID: {request_id}]")
 
     # Process request
     try:
         response = await call_next(request)
-    except Exception as e:
-        logger.error(
-            f"Request failed: {request.method} {request.url.path} "
-            f"[Request-ID: {request_id}] Error: {str(e)}"
+    except Exception:
+        logger.exception(
+            "Request failed: %s %s [Request-ID: %s]",
+            request.method,
+            request.url.path,
+            request_id,
         )
         raise
 
@@ -272,7 +276,7 @@ async def request_logging_middleware(request: Request, call_next) -> Response:
     response.headers["X-Request-ID"] = request_id
 
     # Log request completion
-    log_level = logging.DEBUG if response.status_code < 400 else logging.WARNING
+    log_level = logging.DEBUG if response.status_code < HTTP_ERROR_THRESHOLD else logging.WARNING
     logger.log(
         log_level,
         f"Request completed: {request.method} {request.url.path} "
@@ -368,7 +372,7 @@ async def health_check() -> dict[str, Any]:
     """
     return {
         "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "version": "1.0.0",
         "service": "META-STAMP V3 API",
     }
@@ -396,8 +400,8 @@ async def readiness_check() -> dict[str, Any]:
             - checks: Individual dependency status
     """
     # Import here to avoid circular imports during initialization
-    from app.core.database import get_db_client
-    from app.core.redis_client import get_redis_client
+    from app.core.database import get_db_client  # noqa: PLC0415
+    from app.core.redis_client import get_redis_client  # noqa: PLC0415
 
     checks: dict[str, bool] = {}
 
@@ -425,7 +429,7 @@ async def readiness_check() -> dict[str, Any]:
 
     return {
         "ready": is_ready,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "checks": checks,
     }
 
@@ -436,7 +440,7 @@ async def readiness_check() -> dict[str, Any]:
 
 
 @app.exception_handler(404)
-async def not_found_handler(request: Request, exc: Exception) -> JSONResponse:
+async def not_found_handler(request: Request, _exc: Exception) -> JSONResponse:
     """
     Custom 404 Not Found exception handler.
 
@@ -477,7 +481,7 @@ async def internal_error_handler(request: Request, exc: Exception) -> JSONRespon
         JSONResponse: Structured error response without sensitive details
     """
     logger.error(
-        f"Internal server error on {request.method} {request.url.path}: {str(exc)}",
+        f"Internal server error on {request.method} {request.url.path}: {exc!s}",
         exc_info=True,
     )
 

@@ -95,9 +95,7 @@ def mock_storage() -> Mock:
     mock.initiate_multipart_upload = Mock(return_value="test-upload-id-12345")
     mock.complete_multipart_upload = Mock(return_value=True)
     mock.abort_multipart_upload = Mock(return_value=True)
-    mock.generate_presigned_part_url = Mock(
-        return_value="https://s3.example.com/part-upload-url"
-    )
+    mock.generate_presigned_part_url = Mock(return_value="https://s3.example.com/part-upload-url")
     return mock
 
 
@@ -134,9 +132,7 @@ def mock_auth() -> dict[str, Any]:
         "auth0_id": "auth0|test12345",
         "created_at": datetime.now(UTC),
     }
-    headers = {
-        "Authorization": "Bearer test-jwt-token-12345"
-    }
+    headers = {"Authorization": "Bearer test-jwt-token-12345"}
     return {
         "user": user,
         "headers": headers,
@@ -198,7 +194,7 @@ def mock_upload_service(mock_storage_service: Mock, mock_db: AsyncMock) -> Mock:
         "file_type": "text",
         "file_size": 1024,
         "upload_status": "queued",
-        "status": "processing"
+        "status": "processing",
     }
 
     url_upload_result = {
@@ -210,7 +206,7 @@ def mock_upload_service(mock_storage_service: Mock, mock_db: AsyncMock) -> Mock:
         "upload_status": "queued",
         "status": "processing",
         "url": "https://youtube.com/watch?v=test123",
-        "platform": "youtube"
+        "platform": "youtube",
     }
 
     confirm_result = {
@@ -220,7 +216,7 @@ def mock_upload_service(mock_storage_service: Mock, mock_db: AsyncMock) -> Mock:
         "file_type": "video",
         "file_size": 52428800,
         "upload_status": "confirmed",
-        "status": "confirmed"
+        "status": "confirmed",
     }
 
     presigned_url_result = {
@@ -228,7 +224,7 @@ def mock_upload_service(mock_storage_service: Mock, mock_db: AsyncMock) -> Mock:
         "asset_id": "test-presigned-asset-12345",
         "object_key": "uploads/presigned-key-12345",
         "expires_in": 900,
-        "expiration_time": (datetime.now(UTC) + timedelta(seconds=900)).isoformat()
+        "expiration_time": (datetime.now(UTC) + timedelta(seconds=900)).isoformat(),
     }
 
     # Use AsyncMock with return_value set to actual dicts
@@ -247,10 +243,9 @@ def mock_upload_service(mock_storage_service: Mock, mock_db: AsyncMock) -> Mock:
 def mock_fingerprinting_service() -> Mock:
     """Create a properly mocked FingerprintingService for dependency injection."""
     mock = Mock()
-    mock.generate_fingerprint = AsyncMock(return_value={
-        "fingerprint_id": "test-fingerprint-id-12345",
-        "status": "completed"
-    })
+    mock.generate_fingerprint = AsyncMock(
+        return_value={"fingerprint_id": "test-fingerprint-id-12345", "status": "completed"}
+    )
     return mock
 
 
@@ -293,11 +288,11 @@ def test_image() -> BytesIO:
     png_data = (
         b"\x89PNG\r\n\x1a\n"  # PNG signature
         b"\x00\x00\x00\rIHDR"  # IHDR chunk length
-        b"\x00\x00\x00\x01"    # Width: 1
-        b"\x00\x00\x00\x01"    # Height: 1
-        b"\x08\x02"            # Bit depth: 8, Color type: 2 (RGB)
-        b"\x00\x00\x00"        # Compression, Filter, Interlace
-        b"\x90wS\xde"          # CRC
+        b"\x00\x00\x00\x01"  # Width: 1
+        b"\x00\x00\x00\x01"  # Height: 1
+        b"\x08\x02"  # Bit depth: 8, Color type: 2 (RGB)
+        b"\x00\x00\x00"  # Compression, Filter, Interlace
+        b"\x90wS\xde"  # CRC
         b"\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0\x00\x00\x00\x03\x00\x01\x00\x05\xfe\xd4"  # IDAT
         b"\x00\x00\x00\x00IEND\xaeB`\x82"  # IEND chunk
     )
@@ -316,12 +311,12 @@ def test_audio() -> BytesIO:
         b"WAVE"
         b"fmt "
         b"\x10\x00\x00\x00"  # Chunk size
-        b"\x01\x00"          # Audio format (PCM)
-        b"\x02\x00"          # Channels
+        b"\x01\x00"  # Audio format (PCM)
+        b"\x02\x00"  # Channels
         b"\x44\xac\x00\x00"  # Sample rate (44100)
         b"\x10\xb1\x02\x00"  # Byte rate
-        b"\x04\x00"          # Block align
-        b"\x10\x00"          # Bits per sample
+        b"\x04\x00"  # Block align
+        b"\x10\x00"  # Bits per sample
         b"data"
         b"\x00\x00\x00\x00"  # Data size placeholder
     )
@@ -336,13 +331,13 @@ def test_video() -> BytesIO:
     # MP4/MOV header (simplified ftyp box)
     mp4_data = (
         b"\x00\x00\x00\x20"  # Box size
-        b"ftyp"              # Box type
-        b"isom"              # Major brand
+        b"ftyp"  # Box type
+        b"isom"  # Major brand
         b"\x00\x00\x02\x00"  # Minor version
-        b"isom"              # Compatible brand
-        b"iso2"              # Compatible brand
-        b"avc1"              # Compatible brand
-        b"mp41"              # Compatible brand
+        b"isom"  # Compatible brand
+        b"iso2"  # Compatible brand
+        b"avc1"  # Compatible brand
+        b"mp41"  # Compatible brand
     )
     buf = BytesIO(mp4_data)
     buf.name = "test_video.mp4"
@@ -353,13 +348,15 @@ def test_video() -> BytesIO:
 def mock_youtube() -> Mock:
     """Create mocked YouTube transcript API."""
     mock = Mock()
-    mock.get_transcript = Mock(return_value=[
-        {"text": "Sample transcript text", "start": 0.0, "duration": 5.0},
-        {"text": "More transcript text", "start": 5.0, "duration": 5.0},
-    ])
-    mock.list_transcripts = Mock(return_value=[
-        Mock(language="en", language_code="en", is_generated=False)
-    ])
+    mock.get_transcript = Mock(
+        return_value=[
+            {"text": "Sample transcript text", "start": 0.0, "duration": 5.0},
+            {"text": "More transcript text", "start": 5.0, "duration": 5.0},
+        ]
+    )
+    mock.list_transcripts = Mock(
+        return_value=[Mock(language="en", language_code="en", is_generated=False)]
+    )
     return mock
 
 
@@ -409,9 +406,7 @@ def storage_service() -> Mock:
     mock.initiate_multipart_upload = Mock(return_value="test-upload-id-12345")
     mock.complete_multipart_upload = Mock(return_value=True)
     mock.abort_multipart_upload = Mock(return_value=True)
-    mock.generate_presigned_part_url = Mock(
-        return_value="https://s3.example.com/part-upload-url"
-    )
+    mock.generate_presigned_part_url = Mock(return_value="https://s3.example.com/part-upload-url")
     return mock
 
 
@@ -427,11 +422,13 @@ def metadata_service() -> Mock:
 def url_processor_service() -> Mock:
     """Create a mocked URLProcessorService for isolated testing."""
     mock = Mock(spec=URLProcessorService)
-    mock.process_url = AsyncMock(return_value={
-        "url_type": "webpage",
-        "content": "Sample content",
-        "metadata": {},
-    })
+    mock.process_url = AsyncMock(
+        return_value={
+            "url_type": "webpage",
+            "content": "Sample content",
+            "metadata": {},
+        }
+    )
     return mock
 
 
@@ -548,16 +545,12 @@ class TestUploadRouting:
         should_use_direct = file_size < threshold
         assert should_use_direct is True, "Empty files should route to direct upload"
 
-    def test_detect_upload_strategy_small(
-        self, upload_service: UploadService
-    ) -> None:
+    def test_detect_upload_strategy_small(self, upload_service: UploadService) -> None:
         """Test detect_upload_strategy returns 'direct' for small files."""
         strategy = upload_service.detect_upload_strategy(5 * 1024 * 1024)
         assert strategy == "direct", "Small files should use direct upload strategy"
 
-    def test_detect_upload_strategy_large(
-        self, upload_service: UploadService
-    ) -> None:
+    def test_detect_upload_strategy_large(self, upload_service: UploadService) -> None:
         """Test detect_upload_strategy returns 'presigned' for large files."""
         strategy = upload_service.detect_upload_strategy(15 * 1024 * 1024)
         assert strategy == "presigned", "Large files should use presigned URL strategy"
@@ -584,9 +577,11 @@ class TestDirectUpload:
             headers=mock_auth["headers"],
         )
         # Endpoint should accept the request
-        assert response.status_code in [200, 201, 422], (
-            f"Text upload failed with {response.status_code}"
-        )
+        assert response.status_code in [
+            200,
+            201,
+            422,
+        ], f"Text upload failed with {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_direct_upload_image(
@@ -602,9 +597,11 @@ class TestDirectUpload:
             files={"file": ("test.png", test_image.getvalue(), "image/png")},
             headers=mock_auth["headers"],
         )
-        assert response.status_code in [200, 201, 422], (
-            f"Image upload failed with {response.status_code}"
-        )
+        assert response.status_code in [
+            200,
+            201,
+            422,
+        ], f"Image upload failed with {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_direct_upload_audio(
@@ -620,9 +617,11 @@ class TestDirectUpload:
             files={"file": ("test.mp3", audio_content, "audio/mpeg")},
             headers=mock_auth["headers"],
         )
-        assert response.status_code in [200, 201, 422], (
-            f"Audio upload failed with {response.status_code}"
-        )
+        assert response.status_code in [
+            200,
+            201,
+            422,
+        ], f"Audio upload failed with {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_direct_upload_video(
@@ -638,9 +637,11 @@ class TestDirectUpload:
             files={"file": ("test.mp4", video_content, "video/mp4")},
             headers=mock_auth["headers"],
         )
-        assert response.status_code in [200, 201, 422], (
-            f"Video upload failed with {response.status_code}"
-        )
+        assert response.status_code in [
+            200,
+            201,
+            422,
+        ], f"Video upload failed with {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_direct_upload_streams_to_s3(
@@ -651,10 +652,9 @@ class TestDirectUpload:
         """Verify file is uploaded to S3 during direct upload."""
         # Create mock services
         mock_metadata_service = Mock()
-        mock_metadata_service.extract_file_metadata = AsyncMock(return_value={
-            "file_size": len(small_file_content),
-            "content_type": "text/plain"
-        })
+        mock_metadata_service.extract_file_metadata = AsyncMock(
+            return_value={"file_size": len(small_file_content), "content_type": "text/plain"}
+        )
 
         mock_url_processor = Mock()
 
@@ -662,7 +662,7 @@ class TestDirectUpload:
         _ = UploadService(
             storage_service=mock_storage_service,
             metadata_service=mock_metadata_service,
-            url_processor_service=mock_url_processor
+            url_processor_service=mock_url_processor,
         )
 
         # Create mock UploadFile
@@ -687,9 +687,7 @@ class TestDirectUpload:
     ) -> None:
         """Verify MongoDB asset record is created after direct upload."""
         mock_collection = AsyncMock()
-        mock_collection.insert_one = AsyncMock(
-            return_value=MagicMock(inserted_id="new-asset-id")
-        )
+        mock_collection.insert_one = AsyncMock(return_value=MagicMock(inserted_id="new-asset-id"))
         mock_db.get_assets_collection.return_value = mock_collection
 
         # Create test asset data
@@ -750,9 +748,11 @@ class TestPresignedUrl:
             headers=mock_auth["headers"],
         )
         # Should return presigned URL or validation error
-        assert response.status_code in [200, 400, 422], (
-            f"Presigned URL generation failed with {response.status_code}"
-        )
+        assert response.status_code in [
+            200,
+            400,
+            422,
+        ], f"Presigned URL generation failed with {response.status_code}"
 
     def test_presigned_url_expiration_15_minutes(
         self,
@@ -771,9 +771,9 @@ class TestPresignedUrl:
 
         storage_service.generate_presigned_upload_url.assert_called_once()
         call_args = storage_service.generate_presigned_upload_url.call_args
-        assert call_args.kwargs.get("expires_in") == 900, (
-            "Presigned URL should expire in 900 seconds (15 minutes)"
-        )
+        assert (
+            call_args.kwargs.get("expires_in") == 900
+        ), "Presigned URL should expire in 900 seconds (15 minutes)"
 
     def test_presigned_url_includes_content_type(
         self,
@@ -787,9 +787,9 @@ class TestPresignedUrl:
         )
 
         call_args = storage_service.generate_presigned_upload_url.call_args
-        assert call_args.kwargs.get("content_type") == "image/png", (
-            "Presigned URL should include content-type constraint"
-        )
+        assert (
+            call_args.kwargs.get("content_type") == "image/png"
+        ), "Presigned URL should include content-type constraint"
 
     @pytest.mark.parametrize(
         ("file_type", "content_type"),
@@ -865,9 +865,11 @@ class TestUploadConfirmation:
             },
             headers=mock_auth["headers"],
         )
-        assert response.status_code in [200, 201, 422], (
-            f"Upload confirmation failed with {response.status_code}"
-        )
+        assert response.status_code in [
+            200,
+            201,
+            422,
+        ], f"Upload confirmation failed with {response.status_code}"
 
     def test_confirmation_checks_file_exists(
         self,
@@ -934,9 +936,9 @@ class TestUploadConfirmation:
         """Verify 404 error when S3 file doesn't exist."""
         # Create a mock upload service that raises error for missing file
         mock_upload_svc = Mock(spec=UploadService)
-        mock_upload_svc.confirm_upload = AsyncMock(side_effect=HTTPException(
-            status_code=404, detail="File not found in S3"
-        ))
+        mock_upload_svc.confirm_upload = AsyncMock(
+            side_effect=HTTPException(status_code=404, detail="File not found in S3")
+        )
 
         mock_storage_svc = Mock(spec=StorageService)
         mock_storage_svc.file_exists = AsyncMock(return_value=False)
@@ -964,9 +966,7 @@ class TestUploadConfirmation:
                 headers=mock_auth["headers"],
             )
             # Should return 404 or validation error
-            assert response.status_code in [404, 400, 422], (
-                "Missing S3 file should return error"
-            )
+            assert response.status_code in [404, 400, 422], "Missing S3 file should return error"
         finally:
             app.dependency_overrides.clear()
 
@@ -978,9 +978,7 @@ class TestUploadConfirmation:
         """Test handling of duplicate asset S3 keys."""
         mock_collection = AsyncMock()
         # Simulate MongoDB duplicate key error
-        mock_collection.insert_one = AsyncMock(
-            side_effect=DuplicateKeyError("Duplicate key error")
-        )
+        mock_collection.insert_one = AsyncMock(side_effect=DuplicateKeyError("Duplicate key error"))
         mock_db.get_assets_collection.return_value = mock_collection
 
         asset_data = {"s3_key": "assets/duplicate/key.mp4"}
@@ -1073,7 +1071,9 @@ class TestMultipartUpload:
         part_size = 5 * 1024 * 1024  # 5MB parts
         num_parts = (file_size + part_size - 1) // part_size  # Ceiling division
 
-        assert num_parts <= max_parts, f"Number of parts ({num_parts}) exceeds maximum ({max_parts})"
+        assert (
+            num_parts <= max_parts
+        ), f"Number of parts ({num_parts}) exceeds maximum ({max_parts})"
 
 
 # =============================================================================
@@ -1101,9 +1101,12 @@ class TestURLUpload:
                 headers=mock_auth["headers"],
             )
             # Should accept or return validation error
-            assert response.status_code in [200, 201, 400, 422], (
-                f"YouTube URL upload failed with {response.status_code}"
-            )
+            assert response.status_code in [
+                200,
+                201,
+                400,
+                422,
+            ], f"YouTube URL upload failed with {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_upload_url_vimeo(
@@ -1117,9 +1120,12 @@ class TestURLUpload:
             json={"url": "https://vimeo.com/123456789"},
             headers=mock_auth["headers"],
         )
-        assert response.status_code in [200, 201, 400, 422], (
-            f"Vimeo URL upload failed with {response.status_code}"
-        )
+        assert response.status_code in [
+            200,
+            201,
+            400,
+            422,
+        ], f"Vimeo URL upload failed with {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_upload_url_generic_webpage(
@@ -1139,9 +1145,12 @@ class TestURLUpload:
                 json={"url": "https://example.com/article"},
                 headers=mock_auth["headers"],
             )
-            assert response.status_code in [200, 201, 400, 422], (
-                f"Webpage URL upload failed with {response.status_code}"
-            )
+            assert response.status_code in [
+                200,
+                201,
+                400,
+                422,
+            ], f"Webpage URL upload failed with {response.status_code}"
 
     def test_youtube_transcript_extraction(
         self,
@@ -1208,7 +1217,21 @@ class TestFileValidation:
 
     @pytest.mark.parametrize(
         "extension",
-        [".txt", ".md", ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".mp3", ".wav", ".aac", ".mp4", ".mov", ".avi"],
+        [
+            ".txt",
+            ".md",
+            ".pdf",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".mp3",
+            ".wav",
+            ".aac",
+            ".mp4",
+            ".mov",
+            ".avi",
+        ],
     )
     def test_validate_allowed_extensions(self, extension: str) -> None:
         """Test that allowed extensions are accepted."""
@@ -1270,7 +1293,9 @@ class TestFileValidation:
 
         for filename in dangerous_filenames:
             result = validate_filename(filename)
-            assert result["is_valid"] is False, f"Path traversal filename '{filename}' should be rejected"
+            assert (
+                result["is_valid"] is False
+            ), f"Path traversal filename '{filename}' should be rejected"
 
 
 # =============================================================================
@@ -1302,9 +1327,11 @@ class TestFileSizeLimit:
             headers=mock_auth["headers"],
         )
         # Should return 413 or validation error
-        assert response.status_code in [413, 400, 422], (
-            f"Oversized file should be rejected, got {response.status_code}"
-        )
+        assert response.status_code in [
+            413,
+            400,
+            422,
+        ], f"Oversized file should be rejected, got {response.status_code}"
 
     def test_file_size_in_presigned_url_policy(
         self,
@@ -1352,9 +1379,9 @@ class TestFileSizeLimit:
         max_size = 500 * 1024 * 1024
         result = validate_file_size(file_size, max_size)
 
-        assert result["is_valid"] == should_pass, (
-            f"File size {file_size} bytes should {'pass' if should_pass else 'fail'}"
-        )
+        assert (
+            result["is_valid"] == should_pass
+        ), f"File size {file_size} bytes should {'pass' if should_pass else 'fail'}"
 
 
 # =============================================================================
@@ -1463,9 +1490,7 @@ class TestErrorHandling:
     ) -> None:
         """Test handling when MongoDB insert fails."""
         mock_collection = AsyncMock()
-        mock_collection.insert_one = AsyncMock(
-            side_effect=Exception("MongoDB connection error")
-        )
+        mock_collection.insert_one = AsyncMock(side_effect=Exception("MongoDB connection error"))
         mock_db.get_assets_collection.return_value = mock_collection
 
         with pytest.raises(Exception, match="MongoDB"):
@@ -1483,9 +1508,7 @@ class TestErrorHandling:
         mock_storage.delete_file.return_value = True
 
         mock_collection = AsyncMock()
-        mock_collection.insert_one = AsyncMock(
-            side_effect=Exception("DB error")
-        )
+        mock_collection.insert_one = AsyncMock(side_effect=Exception("DB error"))
         mock_db.get_assets_collection.return_value = mock_collection
 
         # After DB failure, the S3 file should be cleaned up
@@ -1522,9 +1545,11 @@ class TestErrorHandling:
             headers=mock_auth["headers"],
         )
         # Should return 415 Unsupported Media Type or validation error
-        assert response.status_code in [415, 400, 422], (
-            f"Invalid content type should be rejected, got {response.status_code}"
-        )
+        assert response.status_code in [
+            415,
+            400,
+            422,
+        ], f"Invalid content type should be rejected, got {response.status_code}"
 
 
 # =============================================================================
@@ -1554,9 +1579,11 @@ class TestConcurrentUploads:
 
         # All uploads should be accepted (or return validation errors)
         for i, response in enumerate(responses):
-            assert response.status_code in [200, 201, 422], (
-                f"Upload {i} failed with {response.status_code}"
-            )
+            assert response.status_code in [
+                200,
+                201,
+                422,
+            ], f"Upload {i} failed with {response.status_code}"
 
     def test_upload_queue_management(self) -> None:
         """Test upload queue enforcement (5 max per user)."""
@@ -1607,9 +1634,11 @@ class TestAuthentication:
             files={"file": ("test.txt", b"Test content", "text/plain")},
         )
         # Should return 401 Unauthorized or 403 Forbidden
-        assert response.status_code in [401, 403, 422], (
-            f"Unauthenticated request should be rejected, got {response.status_code}"
-        )
+        assert response.status_code in [
+            401,
+            403,
+            422,
+        ], f"Unauthenticated request should be rejected, got {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_upload_with_valid_token(
@@ -1622,9 +1651,11 @@ class TestAuthentication:
             files={"file": ("test.txt", b"Test content", "text/plain")},
         )
         # Should succeed or return validation error (not auth error)
-        assert response.status_code in [200, 201, 422], (
-            f"Authenticated request should succeed, got {response.status_code}"
-        )
+        assert response.status_code in [
+            200,
+            201,
+            422,
+        ], f"Authenticated request should succeed, got {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_upload_user_isolation(
@@ -1634,9 +1665,7 @@ class TestAuthentication:
         """Verify assets are linked to correct user_id."""
         user_id = "specific-user-id"
         mock_collection = AsyncMock()
-        mock_collection.insert_one = AsyncMock(
-            return_value=MagicMock(inserted_id="asset-id")
-        )
+        mock_collection.insert_one = AsyncMock(return_value=MagicMock(inserted_id="asset-id"))
         mock_db.get_assets_collection.return_value = mock_collection
 
         asset_data = {
@@ -1865,9 +1894,9 @@ class TestEdgeCases:
     )
     def test_valid_content_types(self, content_type: str) -> None:
         """Test all valid content types are accepted."""
-        assert content_type in ALLOWED_CONTENT_TYPES, (
-            f"Content type {content_type} should be allowed"
-        )
+        assert (
+            content_type in ALLOWED_CONTENT_TYPES
+        ), f"Content type {content_type} should be allowed"
 
     @pytest.mark.parametrize(
         "content_type",
@@ -1881,6 +1910,6 @@ class TestEdgeCases:
     )
     def test_dangerous_content_types(self, content_type: str) -> None:
         """Test dangerous content types are rejected."""
-        assert content_type in DANGEROUS_CONTENT_TYPES, (
-            f"Content type {content_type} should be rejected"
-        )
+        assert (
+            content_type in DANGEROUS_CONTENT_TYPES
+        ), f"Content type {content_type} should be rejected"

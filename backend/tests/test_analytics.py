@@ -126,9 +126,7 @@ class TestFormulaCorrectness:
     """
 
     @pytest.mark.asyncio
-    async def test_calculate_ai_touch_value_basic(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_calculate_ai_touch_value_basic(self, ai_value_service: AIValueService) -> None:
         """
         Test formula with standard inputs.
 
@@ -211,9 +209,7 @@ class TestFormulaCorrectness:
             assert result["calculated_value"] == "0.00"
 
     @pytest.mark.asyncio
-    async def test_calculate_complex_values(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_calculate_complex_values(self, ai_value_service: AIValueService) -> None:
         """
         Test formula with complex decimal values.
 
@@ -317,9 +313,7 @@ class TestInputValidation:
     """
 
     @pytest.mark.asyncio
-    async def test_validate_negative_earnings(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_validate_negative_earnings(self, ai_value_service: AIValueService) -> None:
         """Verify negative model_earnings raises ValueError."""
         with pytest.raises(ValueError, match="non-negative"):
             await ai_value_service.calculate_ai_touch_value(
@@ -365,9 +359,7 @@ class TestInputValidation:
             )
 
     @pytest.mark.asyncio
-    async def test_validate_exposure_score_below_0(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_validate_exposure_score_below_0(self, ai_value_service: AIValueService) -> None:
         """Verify exposure_score < 0 raises ValueError."""
         with pytest.raises(ValueError, match="between 0 and 100"):
             await ai_value_service.calculate_ai_touch_value(
@@ -377,9 +369,7 @@ class TestInputValidation:
             )
 
     @pytest.mark.asyncio
-    async def test_validate_all_inputs_together(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_validate_all_inputs_together(self, ai_value_service: AIValueService) -> None:
         """Test that validation catches the first invalid input."""
         # Negative earnings should be caught first
         with pytest.raises(ValueError, match="must be non-negative"):
@@ -423,9 +413,7 @@ class TestEdgeCases:
     """
 
     @pytest.mark.asyncio
-    async def test_very_large_earnings(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_very_large_earnings(self, ai_value_service: AIValueService) -> None:
         """Test with earnings in billions."""
         with patch("app.services.ai_value_service.get_db_client") as mock_get_db:
             mock_get_db.side_effect = RuntimeError("Database not initialized")
@@ -440,9 +428,7 @@ class TestEdgeCases:
             assert result["calculated_value"] == "62500000.00"
 
     @pytest.mark.asyncio
-    async def test_fractional_scores(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_fractional_scores(self, ai_value_service: AIValueService) -> None:
         """Test with decimal scores (50.5, 75.25)."""
         with patch("app.services.ai_value_service.get_db_client") as mock_get_db:
             mock_get_db.side_effect = RuntimeError("Database not initialized")
@@ -458,9 +444,7 @@ class TestEdgeCases:
             assert calculated == Decimal("950.03")
 
     @pytest.mark.asyncio
-    async def test_rounding_precision(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_rounding_precision(self, ai_value_service: AIValueService) -> None:
         """Verify results rounded to 2 decimal places."""
         with patch("app.services.ai_value_service.get_db_client") as mock_get_db:
             mock_get_db.side_effect = RuntimeError("Database not initialized")
@@ -510,9 +494,7 @@ class TestEdgeCases:
             assert result["calculated_value"] == "0.00"
 
     @pytest.mark.asyncio
-    async def test_boundary_score_values(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_boundary_score_values(self, ai_value_service: AIValueService) -> None:
         """Test exact boundary values (0 and 100)."""
         with patch("app.services.ai_value_service.get_db_client") as mock_get_db:
             mock_get_db.side_effect = RuntimeError("Database not initialized")
@@ -584,9 +566,7 @@ class TestPredictionFunction:
             assert 0 <= result["predicted_exposure_score"] <= 100
 
     @pytest.mark.asyncio
-    async def test_predict_with_different_platforms(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_predict_with_different_platforms(self, ai_value_service: AIValueService) -> None:
         """Test platform-specific score adjustments."""
         with patch("app.services.ai_value_service.get_db_client") as mock_get_db:
             mock_get_db.side_effect = RuntimeError("Database not initialized")
@@ -622,9 +602,7 @@ class TestPredictionFunction:
             )
 
     @pytest.mark.asyncio
-    async def test_predict_low_metrics(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_predict_low_metrics(self, ai_value_service: AIValueService) -> None:
         """Test prediction with minimal user metrics."""
         with patch("app.services.ai_value_service.get_db_client") as mock_get_db:
             mock_get_db.side_effect = RuntimeError("Database not initialized")
@@ -646,9 +624,7 @@ class TestPredictionFunction:
             assert result["predicted_exposure_score"] < 50
 
     @pytest.mark.asyncio
-    async def test_predict_high_metrics(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_predict_high_metrics(self, ai_value_service: AIValueService) -> None:
         """Test prediction with high user metrics."""
         with patch("app.services.ai_value_service.get_db_client") as mock_get_db:
             mock_get_db.side_effect = RuntimeError("Database not initialized")
@@ -974,9 +950,7 @@ class TestCalculationBreakdown:
     Verifies breakdown includes all formula components and intermediate values.
     """
 
-    def test_calculation_breakdown_structure(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    def test_calculation_breakdown_structure(self, ai_value_service: AIValueService) -> None:
         """Verify breakdown includes all formula components."""
         breakdown = ai_value_service.get_formula_breakdown(
             model_earnings=10000.0,
@@ -997,9 +971,7 @@ class TestCalculationBreakdown:
         assert breakdown["inputs"]["exposure_score"] == 80.0
         assert breakdown["inputs"]["equity_factor"] == 0.25
 
-    def test_breakdown_shows_intermediate_values(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    def test_breakdown_shows_intermediate_values(self, ai_value_service: AIValueService) -> None:
         """Verify contribution_factor, exposure_factor shown."""
         breakdown = ai_value_service.get_formula_breakdown(
             model_earnings=10000.0,
@@ -1016,9 +988,7 @@ class TestCalculationBreakdown:
         expected_multiplier = 0.75 * 0.80 * 0.25
         assert factors["combined_multiplier"] == pytest.approx(expected_multiplier, rel=1e-5)
 
-    def test_breakdown_final_result(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    def test_breakdown_final_result(self, ai_value_service: AIValueService) -> None:
         """Verify final result is correctly calculated and displayed."""
         breakdown = ai_value_service.get_formula_breakdown(
             model_earnings=10000.0,
@@ -1030,9 +1000,7 @@ class TestCalculationBreakdown:
         assert breakdown["final_result"]["calculated_value"] == "1500.00"
         assert breakdown["final_result"]["currency"] == "USD"
 
-    def test_breakdown_formula_string(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    def test_breakdown_formula_string(self, ai_value_service: AIValueService) -> None:
         """Verify formula string is correct."""
         breakdown = ai_value_service.get_formula_breakdown(
             model_earnings=10000.0,
@@ -1060,9 +1028,7 @@ class TestPerformance:
     """
 
     @pytest.mark.asyncio
-    async def test_calculation_performance(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_calculation_performance(self, ai_value_service: AIValueService) -> None:
         """Verify calculation completes in < 10ms."""
         with patch("app.services.ai_value_service.get_db_client") as mock_get_db:
             mock_get_db.side_effect = RuntimeError("Database not initialized")
@@ -1103,9 +1069,7 @@ class TestPerformance:
             # 100 calculations should complete in under 1 second
             assert elapsed_time < 1.0, f"100 calculations took {elapsed_time:.4f}s"
 
-    def test_formula_breakdown_performance(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    def test_formula_breakdown_performance(self, ai_value_service: AIValueService) -> None:
         """Test formula breakdown is fast."""
         start_time = time.perf_counter()
 
@@ -1224,9 +1188,7 @@ class TestValueProjection:
     """Test AI Touch Value™ projection over time periods."""
 
     @pytest.mark.asyncio
-    async def test_project_value_basic(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_project_value_basic(self, ai_value_service: AIValueService) -> None:
         """Test basic value projection."""
         projections = await ai_value_service.project_value(
             base_model_earnings=100000.0,
@@ -1249,9 +1211,7 @@ class TestValueProjection:
             assert current > previous
 
     @pytest.mark.asyncio
-    async def test_project_value_cumulative(
-        self, ai_value_service: AIValueService
-    ) -> None:
+    async def test_project_value_cumulative(self, ai_value_service: AIValueService) -> None:
         """Test cumulative value in projections."""
         projections = await ai_value_service.project_value(
             base_model_earnings=10000.0,
