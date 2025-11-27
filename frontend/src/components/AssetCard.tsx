@@ -379,8 +379,10 @@ const DeleteConfirmationModal = ({
         {/* Message */}
         <p className="text-gray-600 text-center mb-6">
           Are you sure you want to delete{' '}
-          <span className="font-medium text-gray-900">&apos;{truncateString(fileName, 40)}&apos;</span>?
-          This action cannot be undone.
+          <span className="font-medium text-gray-900">
+            &apos;{truncateString(fileName, 40)}&apos;
+          </span>
+          ? This action cannot be undone.
         </p>
 
         {/* Action buttons */}
@@ -450,9 +452,15 @@ const FingerprintModal = ({
   // In real implementation, this would come from the API
   const fingerprintData = {
     perceptualHashes: {
-      pHash: asset.fingerprint_id ? `ph_${asset.fingerprint_id.substring(0, 16)}` : '',
-      aHash: asset.fingerprint_id ? `ah_${asset.fingerprint_id.substring(0, 16)}` : '',
-      dHash: asset.fingerprint_id ? `dh_${asset.fingerprint_id.substring(0, 16)}` : '',
+      pHash: asset.fingerprint_id
+        ? `ph_${asset.fingerprint_id.substring(0, 16)}`
+        : '',
+      aHash: asset.fingerprint_id
+        ? `ah_${asset.fingerprint_id.substring(0, 16)}`
+        : '',
+      dHash: asset.fingerprint_id
+        ? `dh_${asset.fingerprint_id.substring(0, 16)}`
+        : '',
     },
     embeddings: {
       model: 'OpenAI CLIP',
@@ -645,7 +653,9 @@ export default function AssetCard({
         onKeyDown={handleCardKeyDown}
       >
         {/* Thumbnail Section */}
-        <div className={`relative w-full ${thumbnailHeight} rounded-lg overflow-hidden mb-3`}>
+        <div
+          className={`relative w-full ${thumbnailHeight} rounded-lg overflow-hidden mb-3`}
+        >
           {hasThumbnail ? (
             <img
               src={thumbnailUrl}
@@ -738,16 +748,16 @@ export default function AssetCard({
                   fingerprintStatus === 'completed'
                     ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer'
                     : fingerprintStatus === 'pending'
-                    ? 'bg-yellow-100 text-yellow-700 cursor-default'
-                    : 'bg-red-100 text-red-700 cursor-default'
+                      ? 'bg-yellow-100 text-yellow-700 cursor-default'
+                      : 'bg-red-100 text-red-700 cursor-default'
                 }
               `}
               title={
                 fingerprintStatus === 'completed'
                   ? 'Click to view fingerprint details'
                   : fingerprintStatus === 'pending'
-                  ? 'Fingerprint generation pending'
-                  : 'Fingerprint generation failed'
+                    ? 'Fingerprint generation pending'
+                    : 'Fingerprint generation failed'
               }
               aria-label={
                 fingerprintStatus === 'completed'
