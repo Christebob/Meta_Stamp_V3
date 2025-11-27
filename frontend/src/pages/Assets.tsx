@@ -321,7 +321,6 @@ const getPaginationRange = (
 ): (number | 'ellipsis')[] => {
   const delta = 2; // Pages to show on each side of current page
   const range: (number | 'ellipsis')[] = [];
-  const rangeWithDots: (number | 'ellipsis')[] = [];
 
   // Calculate the range of pages to show
   const start = Math.max(2, currentPage - delta);
@@ -371,9 +370,7 @@ const Assets: React.FC = () => {
     error,
     totalCount,
     currentPage,
-    hasMore,
     setPage,
-    setLimit,
     setFilterByFileType,
     setFilterByStatus,
     setSortBy,
@@ -501,6 +498,20 @@ const Assets: React.FC = () => {
     setShowDeleteModal(true);
     setDeleteError(null);
   }, []);
+
+  /**
+   * Wrapper for handleDeleteClick that accepts an assetId string
+   * Used by AssetCard component which passes assetId instead of Asset object
+   */
+  const handleDeleteById = useCallback(
+    (assetId: string) => {
+      const asset = assets.find((a) => a.id === assetId);
+      if (asset) {
+        handleDeleteClick(asset);
+      }
+    },
+    [assets, handleDeleteClick]
+  );
 
   /**
    * Closes delete confirmation modal
@@ -854,7 +865,7 @@ const Assets: React.FC = () => {
                 <AssetCard
                   key={asset.id}
                   asset={asset}
-                  onDelete={handleDeleteClick}
+                  onDelete={handleDeleteById}
                   onView={handleViewAsset}
                 />
               ))}
