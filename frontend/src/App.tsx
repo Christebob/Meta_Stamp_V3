@@ -211,8 +211,8 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
             {/* Error description */}
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              An unexpected error occurred while rendering this page.
-              Please try again or contact support if the problem persists.
+              An unexpected error occurred while rendering this page. Please try
+              again or contact support if the problem persists.
             </p>
 
             {/* Error details (development mode) */}
@@ -261,7 +261,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               </button>
 
               <button
-                onClick={() => window.location.href = '/'}
+                onClick={() => (window.location.href = '/')}
                 className="inline-flex items-center justify-center px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
                 type="button"
               >
