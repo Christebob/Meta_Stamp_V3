@@ -24,7 +24,7 @@
  * @module components/TransactionHistory
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -858,7 +858,7 @@ export default function TransactionHistory({
                 const isPositive = transaction.amount > 0;
 
                 return (
-                  <tbody key={transaction.id}>
+                  <React.Fragment key={transaction.id}>
                     <tr
                       className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
                         isExpanded ? 'bg-gray-50' : ''
@@ -912,7 +912,7 @@ export default function TransactionHistory({
                         </td>
                       </tr>
                     )}
-                  </tbody>
+                  </React.Fragment>
                 );
               })}
           </tbody>
