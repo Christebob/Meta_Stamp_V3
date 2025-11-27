@@ -149,12 +149,24 @@ function getUserInitials(name: string | undefined, email: string): string {
   if (name) {
     const parts = name.trim().split(/\s+/);
     if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+      const firstInitial = parts[0]?.[0] ?? '';
+      const lastInitial = parts[parts.length - 1]?.[0] ?? '';
+      if (firstInitial && lastInitial) {
+        return `${firstInitial}${lastInitial}`.toUpperCase();
+      }
     }
-    return name.substring(0, 2).toUpperCase();
+    if (name.length >= 2) {
+      return name.substring(0, 2).toUpperCase();
+    }
+    if (name.length === 1) {
+      return name.toUpperCase();
+    }
   }
   // Fallback to email prefix
-  return email.substring(0, 2).toUpperCase();
+  if (email.length >= 2) {
+    return email.substring(0, 2).toUpperCase();
+  }
+  return email.length === 1 ? email.toUpperCase() : 'U';
 }
 
 /**
@@ -165,7 +177,7 @@ function getUserInitials(name: string | undefined, email: string): string {
  * @returns {string} TailwindCSS background color class
  */
 function getAvatarColorClass(str: string): string {
-  const colors = [
+  const colors: readonly string[] = [
     'bg-blue-500',
     'bg-green-500',
     'bg-purple-500',
@@ -174,7 +186,7 @@ function getAvatarColorClass(str: string): string {
     'bg-teal-500',
     'bg-orange-500',
     'bg-cyan-500',
-  ];
+  ] as const;
   
   // Simple hash function to get consistent color
   let hash = 0;
@@ -184,7 +196,8 @@ function getAvatarColorClass(str: string): string {
     hash = hash & hash; // Convert to 32-bit integer
   }
   
-  return colors[Math.abs(hash) % colors.length];
+  const index = Math.abs(hash) % colors.length;
+  return colors[index] ?? 'bg-blue-500';
 }
 
 // ============================================================================
@@ -369,7 +382,7 @@ function Sidebar({ isOpen, onClose, className = '' }: SidebarProps): JSX.Element
                         onClose?.();
                       }
                     }}
-                    className={({ isActive }) => `
+                    className={({ isActive }: { isActive: boolean }) => `
                       flex items-center gap-3 px-4 py-3 rounded-lg
                       font-medium text-sm
                       transition-all duration-200 ease-in-out
@@ -380,7 +393,6 @@ function Sidebar({ isOpen, onClose, className = '' }: SidebarProps): JSX.Element
                           : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 border-l-4 border-transparent'
                       }
                     `}
-                    aria-current={({ isActive }) => (isActive ? 'page' : undefined)}
                   >
                     <IconComponent
                       className={`w-5 h-5 flex-shrink-0`}
