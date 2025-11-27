@@ -337,7 +337,8 @@ class JSONFormatter(logging.Formatter):
         return {}
 
     def _format_traceback(
-        self, exc_info: tuple[type[BaseException] | None, BaseException | None, TracebackType | None]
+        self,
+        exc_info: tuple[type[BaseException] | None, BaseException | None, TracebackType | None],
     ) -> str:
         """
         Format the exception traceback as a string.
