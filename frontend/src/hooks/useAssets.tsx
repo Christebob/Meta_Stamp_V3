@@ -19,7 +19,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { assetService } from '@/services/assetService';
+import assetService from '@/services/assetService';
 import type { Asset, FileType, UploadStatus } from '@/types/asset';
 import type { PaginatedResponse, APIError } from '@/types/api';
 
