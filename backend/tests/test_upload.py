@@ -2,7 +2,7 @@
 META-STAMP V3 Upload Service and Endpoint Test Suite
 
 This module provides comprehensive pytest test coverage for the hybrid upload architecture
-implementing all test requirements from Agent Action Plan sections 0.3, 0.4, 0.5, 0.6, 0.8, 
+implementing all test requirements from Agent Action Plan sections 0.3, 0.4, 0.5, 0.6, 0.8,
 and 0.10. The test suite validates:
 
 - Hybrid upload routing (<10MB direct, >10MB presigned URL)
@@ -33,23 +33,43 @@ Test Organization:
 - TestPerformance: Performance benchmarks
 """
 
-import asyncio
 import time
+
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+
+from botocore.exceptions import ClientError, ReadTimeoutError
 from fastapi import HTTPException, UploadFile
 from fastapi.testclient import TestClient
+from pymongo.errors import DuplicateKeyError
 
-from app.api.v1.upload import router
+from app.api.v1.upload import (
+    get_fingerprinting_service,
+    get_storage_service,
+    get_upload_service,
+)
+from app.core.auth import get_current_user
 from app.core.database import get_db_client
-from app.core.storage import get_storage_client
+from app.main import app
+from app.services.metadata_service import MetadataService
 from app.services.storage_service import StorageService
 from app.services.upload_service import UploadService
-from app.utils.file_validator import validate_url
+from app.services.url_processor_service import URLProcessorService
+from app.utils.file_validator import (
+    ALLOWED_CONTENT_TYPES,
+    ALLOWED_EXTENSIONS,
+    DANGEROUS_CONTENT_TYPES,
+    DANGEROUS_EXTENSIONS,
+    sanitize_filename,
+    validate_file_size,
+    validate_filename,
+    validate_mime_type,
+    validate_url,
+)
 
 
 # =============================================================================
@@ -85,7 +105,7 @@ def mock_storage() -> Mock:
 def mock_db() -> AsyncMock:
     """Create mocked MongoDB client for testing."""
     mock = AsyncMock()
-    
+
     # Mock assets collection
     mock_assets_collection = AsyncMock()
     mock_assets_collection.insert_one = AsyncMock(
@@ -95,24 +115,24 @@ def mock_db() -> AsyncMock:
     mock_assets_collection.update_one = AsyncMock()
     mock_assets_collection.delete_one = AsyncMock()
     mock.get_assets_collection.return_value = mock_assets_collection
-    
+
     # Mock users collection
     mock_users_collection = AsyncMock()
     mock_users_collection.find_one = AsyncMock(return_value=None)
     mock.get_users_collection.return_value = mock_users_collection
-    
+
     return mock
 
 
 @pytest.fixture
-def mock_auth() -> Dict[str, Any]:
+def mock_auth() -> dict[str, Any]:
     """Create mock authentication data including user and headers."""
     user = {
         "id": "test-user-id-12345",
         "user_id": "test-user-id-12345",
         "email": "testuser@example.com",
         "auth0_id": "auth0|test12345",
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(UTC),
     }
     headers = {
         "Authorization": "Bearer test-jwt-token-12345"
@@ -127,7 +147,6 @@ def mock_auth() -> Dict[str, Any]:
 @pytest.fixture
 def test_client() -> TestClient:
     """Create FastAPI TestClient for endpoint testing (without mocks)."""
-    from app.main import app
     return TestClient(app)
 
 
@@ -170,7 +189,7 @@ def mock_storage_service() -> Mock:
 def mock_upload_service(mock_storage_service: Mock, mock_db: AsyncMock) -> Mock:
     """Create a properly mocked UploadService for dependency injection."""
     mock = Mock()
-    
+
     # Create properly structured return values with all required fields
     direct_upload_result = {
         "asset_id": "test-asset-id-12345",
@@ -181,7 +200,7 @@ def mock_upload_service(mock_storage_service: Mock, mock_db: AsyncMock) -> Mock:
         "upload_status": "queued",
         "status": "processing"
     }
-    
+
     url_upload_result = {
         "asset_id": "test-asset-id-12345",
         "s3_key": "uploads/url-content-12345",
@@ -193,7 +212,7 @@ def mock_upload_service(mock_storage_service: Mock, mock_db: AsyncMock) -> Mock:
         "url": "https://youtube.com/watch?v=test123",
         "platform": "youtube"
     }
-    
+
     confirm_result = {
         "asset_id": "test-asset-id-12345",
         "s3_key": "uploads/test-key-12345",
@@ -203,7 +222,7 @@ def mock_upload_service(mock_storage_service: Mock, mock_db: AsyncMock) -> Mock:
         "upload_status": "confirmed",
         "status": "confirmed"
     }
-    
+
     presigned_url_result = {
         "presigned_url": "https://s3.example.com/bucket/key?signature=abc",
         "asset_id": "test-presigned-asset-12345",
@@ -211,7 +230,7 @@ def mock_upload_service(mock_storage_service: Mock, mock_db: AsyncMock) -> Mock:
         "expires_in": 900,
         "expiration_time": (datetime.now(UTC) + timedelta(seconds=900)).isoformat()
     }
-    
+
     # Use AsyncMock with return_value set to actual dicts
     mock.handle_direct_upload = AsyncMock(return_value=direct_upload_result)
     mock.handle_text_upload = AsyncMock(return_value=direct_upload_result)
@@ -244,11 +263,6 @@ def authed_test_client(
     mock_db: AsyncMock,
 ) -> TestClient:
     """Create FastAPI TestClient with all dependencies mocked for authenticated requests."""
-    from app.main import app
-    from app.core.auth import get_current_user
-    from app.api.v1.upload import get_upload_service, get_storage_service, get_fingerprinting_service
-    from app.core.database import get_db_client
-
     # Override dependencies with mocks
     app.dependency_overrides[get_current_user] = lambda: mock_user
     app.dependency_overrides[get_upload_service] = lambda: mock_upload_service
@@ -277,15 +291,15 @@ def test_image() -> BytesIO:
     # PNG header and minimal valid PNG structure
     # This creates a 1x1 red pixel PNG
     png_data = (
-        b'\x89PNG\r\n\x1a\n'  # PNG signature
-        b'\x00\x00\x00\rIHDR'  # IHDR chunk length
-        b'\x00\x00\x00\x01'    # Width: 1
-        b'\x00\x00\x00\x01'    # Height: 1
-        b'\x08\x02'            # Bit depth: 8, Color type: 2 (RGB)
-        b'\x00\x00\x00'        # Compression, Filter, Interlace
-        b'\x90wS\xde'          # CRC
-        b'\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0\x00\x00\x00\x03\x00\x01\x00\x05\xfe\xd4'  # IDAT
-        b'\x00\x00\x00\x00IEND\xaeB`\x82'  # IEND chunk
+        b"\x89PNG\r\n\x1a\n"  # PNG signature
+        b"\x00\x00\x00\rIHDR"  # IHDR chunk length
+        b"\x00\x00\x00\x01"    # Width: 1
+        b"\x00\x00\x00\x01"    # Height: 1
+        b"\x08\x02"            # Bit depth: 8, Color type: 2 (RGB)
+        b"\x00\x00\x00"        # Compression, Filter, Interlace
+        b"\x90wS\xde"          # CRC
+        b"\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0\x00\x00\x00\x03\x00\x01\x00\x05\xfe\xd4"  # IDAT
+        b"\x00\x00\x00\x00IEND\xaeB`\x82"  # IEND chunk
     )
     buf = BytesIO(png_data)
     buf.name = "test_image.png"
@@ -297,19 +311,19 @@ def test_audio() -> BytesIO:
     """Create a mock audio file for upload testing."""
     # WAV header (simplified)
     wav_data = (
-        b'RIFF'
-        b'\x00\x00\x00\x00'  # File size placeholder
-        b'WAVE'
-        b'fmt '
-        b'\x10\x00\x00\x00'  # Chunk size
-        b'\x01\x00'          # Audio format (PCM)
-        b'\x02\x00'          # Channels
-        b'\x44\xac\x00\x00'  # Sample rate (44100)
-        b'\x10\xb1\x02\x00'  # Byte rate
-        b'\x04\x00'          # Block align
-        b'\x10\x00'          # Bits per sample
-        b'data'
-        b'\x00\x00\x00\x00'  # Data size placeholder
+        b"RIFF"
+        b"\x00\x00\x00\x00"  # File size placeholder
+        b"WAVE"
+        b"fmt "
+        b"\x10\x00\x00\x00"  # Chunk size
+        b"\x01\x00"          # Audio format (PCM)
+        b"\x02\x00"          # Channels
+        b"\x44\xac\x00\x00"  # Sample rate (44100)
+        b"\x10\xb1\x02\x00"  # Byte rate
+        b"\x04\x00"          # Block align
+        b"\x10\x00"          # Bits per sample
+        b"data"
+        b"\x00\x00\x00\x00"  # Data size placeholder
     )
     buf = BytesIO(wav_data)
     buf.name = "test_audio.wav"
@@ -321,14 +335,14 @@ def test_video() -> BytesIO:
     """Create a mock video file for upload testing."""
     # MP4/MOV header (simplified ftyp box)
     mp4_data = (
-        b'\x00\x00\x00\x20'  # Box size
-        b'ftyp'              # Box type
-        b'isom'              # Major brand
-        b'\x00\x00\x02\x00'  # Minor version
-        b'isom'              # Compatible brand
-        b'iso2'              # Compatible brand
-        b'avc1'              # Compatible brand
-        b'mp41'              # Compatible brand
+        b"\x00\x00\x00\x20"  # Box size
+        b"ftyp"              # Box type
+        b"isom"              # Major brand
+        b"\x00\x00\x02\x00"  # Minor version
+        b"isom"              # Compatible brand
+        b"iso2"              # Compatible brand
+        b"avc1"              # Compatible brand
+        b"mp41"              # Compatible brand
     )
     buf = BytesIO(mp4_data)
     buf.name = "test_video.mp4"
@@ -404,7 +418,6 @@ def storage_service() -> Mock:
 @pytest.fixture
 def metadata_service() -> Mock:
     """Create a mocked MetadataService for isolated testing."""
-    from app.services.metadata_service import MetadataService
     mock = Mock(spec=MetadataService)
     mock.extract_metadata = AsyncMock(return_value={"width": 100, "height": 100})
     return mock
@@ -413,7 +426,6 @@ def metadata_service() -> Mock:
 @pytest.fixture
 def url_processor_service() -> Mock:
     """Create a mocked URLProcessorService for isolated testing."""
-    from app.services.url_processor_service import URLProcessorService
     mock = Mock(spec=URLProcessorService)
     mock.process_url = AsyncMock(return_value={
         "url_type": "webpage",
@@ -424,14 +436,15 @@ def url_processor_service() -> Mock:
 
 
 @pytest.fixture
-def upload_service(storage_service: Mock, metadata_service: Mock, url_processor_service: Mock) -> UploadService:
+def upload_service(
+    storage_service: Mock, metadata_service: Mock, url_processor_service: Mock
+) -> UploadService:
     """Create UploadService instance with mocked dependencies."""
-    service = UploadService(
+    return UploadService(
         storage_service=storage_service,
         metadata_service=metadata_service,
         url_processor_service=url_processor_service,
     )
-    return service
 
 
 @pytest.fixture
@@ -562,7 +575,7 @@ class TestDirectUpload:
     async def test_direct_upload_text(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
     ) -> None:
         """Test POST /api/v1/upload/text for direct text upload."""
         response = authed_test_client.post(
@@ -579,7 +592,7 @@ class TestDirectUpload:
     async def test_direct_upload_image(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
         test_image: BytesIO,
     ) -> None:
         """Test POST /api/v1/upload/image for direct image upload."""
@@ -597,7 +610,7 @@ class TestDirectUpload:
     async def test_direct_upload_audio(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
     ) -> None:
         """Test POST /api/v1/upload/audio for direct audio upload."""
         # Create mock audio content
@@ -615,7 +628,7 @@ class TestDirectUpload:
     async def test_direct_upload_video(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
     ) -> None:
         """Test POST /api/v1/upload/video for direct video upload."""
         # Create mock video content
@@ -642,11 +655,11 @@ class TestDirectUpload:
             "file_size": len(small_file_content),
             "content_type": "text/plain"
         })
-        
+
         mock_url_processor = Mock()
-        
+
         # Create service instance with proper dependencies
-        service = UploadService(
+        _ = UploadService(
             storage_service=mock_storage_service,
             metadata_service=mock_metadata_service,
             url_processor_service=mock_url_processor
@@ -663,7 +676,7 @@ class TestDirectUpload:
         # The upload should interact with storage
         # Note: Actual call depends on implementation
         mock_storage_service.upload_file.return_value = True
-        
+
         # Verify storage mock is set up properly
         assert mock_storage_service.upload_file is not None
 
@@ -671,7 +684,6 @@ class TestDirectUpload:
     async def test_direct_upload_creates_asset_record(
         self,
         mock_db: AsyncMock,
-        mock_storage_service: Mock,
     ) -> None:
         """Verify MongoDB asset record is created after direct upload."""
         mock_collection = AsyncMock()
@@ -679,11 +691,6 @@ class TestDirectUpload:
             return_value=MagicMock(inserted_id="new-asset-id")
         )
         mock_db.get_assets_collection.return_value = mock_collection
-
-        # Create mock services
-        mock_metadata_service = Mock()
-        mock_metadata_service.extract_file_metadata = AsyncMock(return_value={})
-        mock_url_processor = Mock()
 
         # Create test asset data
         asset_data = {
@@ -730,7 +737,7 @@ class TestPresignedUrl:
     async def test_generate_presigned_url(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
     ) -> None:
         """Test GET /api/v1/upload/presigned-url endpoint."""
         response = authed_test_client.get(
@@ -785,7 +792,7 @@ class TestPresignedUrl:
         )
 
     @pytest.mark.parametrize(
-        "file_type,content_type",
+        ("file_type", "content_type"),
         [
             ("text", "text/plain"),
             ("image", "image/png"),
@@ -844,7 +851,7 @@ class TestUploadConfirmation:
     async def test_upload_confirmation_validates_s3(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
     ) -> None:
         """Test POST /api/v1/upload/confirmation validates S3 file existence."""
         response = authed_test_client.post(
@@ -879,7 +886,6 @@ class TestUploadConfirmation:
     async def test_confirmation_creates_asset_record(
         self,
         mock_db: AsyncMock,
-        mock_storage: Mock,
     ) -> None:
         """Verify upload confirmation creates MongoDB asset record."""
         mock_collection = AsyncMock()
@@ -896,7 +902,7 @@ class TestUploadConfirmation:
             "file_size": 50 * 1024 * 1024,
             "s3_key": "assets/test-user-id/large_video.mp4",
             "upload_status": "ready",
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(UTC),
         }
 
         await mock_collection.insert_one(asset_data)
@@ -921,16 +927,11 @@ class TestUploadConfirmation:
     @pytest.mark.asyncio
     async def test_confirmation_missing_file_fails(
         self,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
         mock_user: MagicMock,
         mock_db: AsyncMock,
     ) -> None:
         """Verify 404 error when S3 file doesn't exist."""
-        from app.main import app
-        from app.core.auth import get_current_user
-        from app.api.v1.upload import get_upload_service, get_storage_service, get_fingerprinting_service
-        from app.core.database import get_db_client
-
         # Create a mock upload service that raises error for missing file
         mock_upload_svc = Mock(spec=UploadService)
         mock_upload_svc.confirm_upload = AsyncMock(side_effect=HTTPException(
@@ -977,8 +978,6 @@ class TestUploadConfirmation:
         """Test handling of duplicate asset S3 keys."""
         mock_collection = AsyncMock()
         # Simulate MongoDB duplicate key error
-        from pymongo.errors import DuplicateKeyError
-
         mock_collection.insert_one = AsyncMock(
             side_effect=DuplicateKeyError("Duplicate key error")
         )
@@ -1089,7 +1088,7 @@ class TestURLUpload:
     async def test_upload_url_youtube(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
     ) -> None:
         """Test POST /api/v1/upload/url with YouTube URL."""
         with patch("app.services.url_processor_service.YouTubeTranscriptApi") as mock_yt:
@@ -1110,7 +1109,7 @@ class TestURLUpload:
     async def test_upload_url_vimeo(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
     ) -> None:
         """Test POST /api/v1/upload/url with Vimeo URL."""
         response = authed_test_client.post(
@@ -1126,7 +1125,7 @@ class TestURLUpload:
     async def test_upload_url_generic_webpage(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
     ) -> None:
         """Test POST /api/v1/upload/url with generic webpage URL."""
         with patch("requests.get") as mock_requests:
@@ -1213,15 +1212,11 @@ class TestFileValidation:
     )
     def test_validate_allowed_extensions(self, extension: str) -> None:
         """Test that allowed extensions are accepted."""
-        from app.utils.file_validator import ALLOWED_EXTENSIONS
-
         assert extension in ALLOWED_EXTENSIONS, f"Extension {extension} should be allowed"
 
     @pytest.mark.parametrize("extension", [".zip", ".rar", ".7z"])
     def test_reject_zip_files(self, extension: str) -> None:
         """Verify .zip, .rar, .7z files are rejected with 415 error."""
-        from app.utils.file_validator import DANGEROUS_EXTENSIONS
-
         assert extension in DANGEROUS_EXTENSIONS, f"Extension {extension} should be rejected"
 
     @pytest.mark.parametrize(
@@ -1230,14 +1225,10 @@ class TestFileValidation:
     )
     def test_reject_executables(self, extension: str) -> None:
         """Verify executable files are rejected."""
-        from app.utils.file_validator import DANGEROUS_EXTENSIONS
-
         assert extension in DANGEROUS_EXTENSIONS, f"Extension {extension} should be rejected"
 
     def test_validate_mime_type(self, test_image: BytesIO) -> None:
         """Verify MIME type checking beyond extension."""
-        from app.utils.file_validator import validate_mime_type
-
         test_image.seek(0)
         content = test_image.read()
         test_image.seek(0)
@@ -1252,8 +1243,6 @@ class TestFileValidation:
 
     def test_filename_sanitization(self) -> None:
         """Test that special characters are removed from filenames."""
-        from app.utils.file_validator import sanitize_filename
-
         test_cases = [
             ("test file.txt", "test_file.txt"),
             ("file<script>.png", "filescript.png"),
@@ -1262,17 +1251,15 @@ class TestFileValidation:
             ("test@#$%file.mp3", "testfile.mp3"),
         ]
 
-        for original, expected_pattern in test_cases:
+        for original, _ in test_cases:
             sanitized = sanitize_filename(original)
             # Should not contain dangerous characters
             assert ".." not in sanitized, f"Sanitized filename should not contain '..': {sanitized}"
             assert "/" not in sanitized, f"Sanitized filename should not contain '/': {sanitized}"
-            assert "\x00" not in sanitized, f"Sanitized filename should not contain null bytes"
+            assert "\x00" not in sanitized, "Sanitized filename should not contain null bytes"
 
     def test_path_traversal_prevention(self) -> None:
         """Verify ../ in filenames is rejected."""
-        from app.utils.file_validator import validate_filename
-
         dangerous_filenames = [
             "../../../etc/passwd",
             "..\\..\\windows\\system32",
@@ -1298,11 +1285,9 @@ class TestFileSizeLimit:
     async def test_enforce_500mb_limit(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
     ) -> None:
         """Verify 500MB max file size is enforced."""
-        max_size_bytes = 500 * 1024 * 1024  # 500MB
-
         # Test with oversized file (should be rejected)
         oversized = 501 * 1024 * 1024  # 501MB
 
@@ -1343,8 +1328,6 @@ class TestFileSizeLimit:
 
     def test_reject_oversized_file(self) -> None:
         """Verify 413 Payload Too Large error for oversized files."""
-        from app.utils.file_validator import validate_file_size
-
         max_size = 500 * 1024 * 1024  # 500MB
         oversized = 600 * 1024 * 1024  # 600MB
 
@@ -1353,7 +1336,7 @@ class TestFileSizeLimit:
         assert "exceeds maximum" in result.get("error", "").lower() or result["is_valid"] is False
 
     @pytest.mark.parametrize(
-        "file_size,should_pass",
+        ("file_size", "should_pass"),
         [
             (0, True),  # Empty file
             (1024, True),  # 1KB
@@ -1366,8 +1349,6 @@ class TestFileSizeLimit:
     )
     def test_accurate_size_detection(self, file_size: int, should_pass: bool) -> None:
         """Test size detection accuracy for various file sizes."""
-        from app.utils.file_validator import validate_file_size
-
         max_size = 500 * 1024 * 1024
         result = validate_file_size(file_size, max_size)
 
@@ -1433,7 +1414,12 @@ class TestMetadataExtraction:
 
     def test_extract_pdf_metadata(self, test_pdf_file: BytesIO) -> None:
         """Test author, page count extraction from PDFs."""
-        # Mock PDF metadata
+        # Verify test_pdf_file is readable
+        test_pdf_file.seek(0)
+        _ = test_pdf_file.read()
+        test_pdf_file.seek(0)
+
+        # Mock PDF metadata (actual extraction would use PyPDF2 or similar)
         pdf_metadata = {
             "author": "Test Author",
             "pages": 10,
@@ -1459,8 +1445,6 @@ class TestErrorHandling:
         mock_storage: Mock,
     ) -> None:
         """Test handling when S3 upload fails."""
-        from botocore.exceptions import ClientError
-
         mock_storage.upload_file.side_effect = ClientError(
             {"Error": {"Code": "InternalError", "Message": "S3 error"}},
             "PutObject",
@@ -1515,8 +1499,6 @@ class TestErrorHandling:
         mock_storage: Mock,
     ) -> None:
         """Test timeout handling during upload."""
-        from botocore.exceptions import ReadTimeoutError
-
         mock_storage.upload_file.side_effect = ReadTimeoutError(
             endpoint_url="https://s3.example.com"
         )
@@ -1531,7 +1513,7 @@ class TestErrorHandling:
     async def test_upload_invalid_content_type(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
     ) -> None:
         """Verify 415 error for unsupported content types."""
         response = authed_test_client.post(
@@ -1557,7 +1539,7 @@ class TestConcurrentUploads:
     async def test_multiple_simultaneous_uploads(
         self,
         authed_test_client: TestClient,
-        mock_auth: Dict[str, Any],
+        mock_auth: dict[str, Any],
     ) -> None:
         """Test handling 5 concurrent uploads."""
         # Simulate 5 concurrent upload requests
@@ -1785,6 +1767,9 @@ class TestPerformance:
 
         elapsed = time.perf_counter() - start_time
 
+        # Verify upload was accepted (not rejected)
+        assert response.status_code in [200, 201, 422], f"Upload failed: {response.status_code}"
+
         # With mocked dependencies, should be very fast
         # In real scenario, 500ms would be the target
         assert elapsed < 5.0, f"Upload took too long: {elapsed:.2f}s"
@@ -1840,15 +1825,11 @@ class TestEdgeCases:
 
     def test_empty_filename(self) -> None:
         """Test handling of empty filenames."""
-        from app.utils.file_validator import validate_filename
-
         result = validate_filename("")
         assert result["is_valid"] is False
 
     def test_very_long_filename(self) -> None:
         """Test handling of very long filenames."""
-        from app.utils.file_validator import validate_filename
-
         long_name = "a" * 500 + ".txt"
         result = validate_filename(long_name)
         # Should either truncate or reject
@@ -1856,8 +1837,6 @@ class TestEdgeCases:
 
     def test_unicode_filename(self) -> None:
         """Test handling of unicode characters in filenames."""
-        from app.utils.file_validator import sanitize_filename
-
         unicode_name = "tëst_fïlé_中文_🎉.txt"
         sanitized = sanitize_filename(unicode_name)
         # Should handle unicode gracefully
@@ -1866,8 +1845,6 @@ class TestEdgeCases:
 
     def test_null_bytes_in_filename(self) -> None:
         """Test handling of null bytes in filenames."""
-        from app.utils.file_validator import sanitize_filename
-
         malicious_name = "test\x00file.txt"
         sanitized = sanitize_filename(malicious_name)
         assert "\x00" not in sanitized
@@ -1888,8 +1865,6 @@ class TestEdgeCases:
     )
     def test_valid_content_types(self, content_type: str) -> None:
         """Test all valid content types are accepted."""
-        from app.utils.file_validator import ALLOWED_CONTENT_TYPES
-
         assert content_type in ALLOWED_CONTENT_TYPES, (
             f"Content type {content_type} should be allowed"
         )
@@ -1906,8 +1881,6 @@ class TestEdgeCases:
     )
     def test_dangerous_content_types(self, content_type: str) -> None:
         """Test dangerous content types are rejected."""
-        from app.utils.file_validator import DANGEROUS_CONTENT_TYPES
-
         assert content_type in DANGEROUS_CONTENT_TYPES, (
             f"Content type {content_type} should be rejected"
         )
