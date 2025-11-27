@@ -14,6 +14,7 @@ import { Routes, Route } from 'react-router-dom';
  * Lazy load page components for code splitting
  */
 const NotFound = lazy(() => import('./pages/NotFound'));
+const Upload = lazy(() => import('./pages/Upload'));
 
 /**
  * Loading fallback component displayed while lazy components load
@@ -51,6 +52,9 @@ const App: React.FC = () => {
       <Routes>
         {/* Dashboard route (home) */}
         <Route path="/" element={<DashboardPlaceholder />} />
+
+        {/* Upload route */}
+        <Route path="/upload" element={<Upload />} />
 
         {/* 404 catch-all route */}
         <Route path="*" element={<NotFound />} />
