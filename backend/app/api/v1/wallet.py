@@ -14,6 +14,7 @@ wallet endpoints with authenticated user access and state management.
 """
 
 import logging
+
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -24,12 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.auth import get_current_user
 from app.core.database import get_db_client
-from app.models.wallet import (
-    Transaction,
-    TransactionStatus,
-    TransactionType,
-    WalletBalance,
-)
+from app.models.wallet import TransactionStatus, TransactionType
 
 
 # Configure module logger for structured logging
@@ -250,7 +246,7 @@ async def get_or_create_wallet(user_id: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except RuntimeError as e:
-        logger.error("Database unavailable while getting/creating wallet: %s", str(e))
+        logger.exception("Database unavailable while getting/creating wallet")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database service unavailable",
@@ -320,7 +316,7 @@ async def calculate_pending_earnings(user_id: str) -> Decimal:
         return Decimal("0.00")
 
     except RuntimeError as e:
-        logger.error("Database unavailable while calculating pending earnings: %s", str(e))
+        logger.exception("Database unavailable while calculating pending earnings")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database service unavailable",
@@ -661,7 +657,7 @@ async def get_history(
     except HTTPException:
         raise
     except RuntimeError as e:
-        logger.error("Database unavailable while retrieving history: %s", str(e))
+        logger.exception("Database unavailable while retrieving history")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database service unavailable",
@@ -682,10 +678,10 @@ async def get_history(
 # =============================================================================
 
 __all__ = [
-    "router",
     "BalanceResponse",
     "TransactionHistoryResponse",
     "TransactionItem",
-    "get_or_create_wallet",
     "calculate_pending_earnings",
+    "get_or_create_wallet",
+    "router",
 ]
