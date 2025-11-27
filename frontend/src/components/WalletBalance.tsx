@@ -112,24 +112,6 @@ function getCurrencySymbol(currency: string = 'USD'): string {
   return CURRENCY_SYMBOLS[currency] || '$';
 }
 
-/**
- * Formats a compact currency value for large numbers.
- *
- * @param value - The numeric value to format
- * @param currency - ISO 4217 currency code
- * @returns Compact formatted string (e.g., "$1.2M")
- */
-function formatCompactCurrency(value: number, currency: string = 'USD'): string {
-  const symbol = getCurrencySymbol(currency);
-  if (value >= 1_000_000) {
-    return `${symbol}${(value / 1_000_000).toFixed(1)}M`;
-  }
-  if (value >= 1_000) {
-    return `${symbol}${(value / 1_000).toFixed(1)}K`;
-  }
-  return formatCurrency(value, currency);
-}
-
 // ============================================================================
 // Sub-Components
 // ============================================================================
