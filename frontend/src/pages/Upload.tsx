@@ -753,10 +753,7 @@ const Upload: React.FC = () => {
               {/* File Types */}
               {Object.entries(SUPPORTED_FILE_TYPES).map(([key, category]) => (
                 <div key={key} className="flex items-start gap-3">
-                  <span
-                    className="text-2xl flex-shrink-0"
-                    aria-hidden="true"
-                  >
+                  <span className="text-2xl flex-shrink-0" aria-hidden="true">
                     {category.icon}
                   </span>
                   <div>
@@ -837,7 +834,9 @@ const Upload: React.FC = () => {
         <div className="sr-only" role="status" aria-live="polite">
           {isUploading &&
             `${activeUploads} upload${activeUploads !== 1 ? 's' : ''} in progress.`}
-          {!isUploading && uploadQueue.length === 0 && 'No uploads in progress.'}
+          {!isUploading &&
+            uploadQueue.length === 0 &&
+            'No uploads in progress.'}
         </div>
       </div>
     </div>
