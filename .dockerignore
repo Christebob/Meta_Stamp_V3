@@ -1,0 +1,263 @@
+# ============================================================================
+# META-STAMP V3 - Docker Build Context Exclusions
+# ============================================================================
+# This file specifies patterns for files and directories that should be
+# excluded from the Docker build context to:
+# - Reduce Docker image size
+# - Speed up build times
+# - Protect sensitive data from being included in images
+# ============================================================================
+
+# ============================================================================
+# VERSION CONTROL
+# ============================================================================
+# Exclude git history and configuration - not needed in production images
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+
+# ============================================================================
+# ENVIRONMENT AND SECRETS
+# ============================================================================
+# CRITICAL: Never include environment files containing secrets in Docker images
+.env
+.env.*
+**/.env
+**/.env.*
+*.env
+.envrc
+
+# ============================================================================
+# PYTHON DEVELOPMENT ARTIFACTS
+# ============================================================================
+# Virtual environments - dependencies are installed fresh in Docker
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Python bytecode and cache - regenerated at runtime
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Testing artifacts - not needed in production
+.pytest_cache/
+**/.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.coverage
+.hypothesis/
+
+# Type checking cache
+.mypy_cache/
+**/.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Distribution and packaging artifacts
+dist/
+build/
+*.egg-info/
+**/*.egg-info/
+*.egg
+eggs/
+.eggs/
+wheels/
+*.whl
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ============================================================================
+# NODE.JS DEVELOPMENT ARTIFACTS
+# ============================================================================
+# Node modules - dependencies are installed fresh in Docker
+node_modules/
+**/node_modules/
+
+# npm debug logs and cache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.yarn/
+
+# Build outputs - regenerated during Docker build
+dist/
+build/
+.next/
+out/
+
+# ============================================================================
+# BUILD AND DISTRIBUTION ARTIFACTS
+# ============================================================================
+# Generic build directories
+dist/
+build/
+out/
+target/
+*.build/
+
+# ============================================================================
+# IDE AND EDITOR FILES
+# ============================================================================
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs (PyCharm, WebStorm, IntelliJ)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim/Neovim
+*.swp
+*.swo
+*.swn
+*~
+
+# Emacs
+*~
+\#*\#
+.#*
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# ============================================================================
+# DOCUMENTATION
+# ============================================================================
+# Documentation files - not needed in runtime images
+README.md
+README.rst
+README.txt
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+LICENSE.md
+docs/
+documentation/
+*.md
+!requirements*.md
+
+# ============================================================================
+# DOCKER FILES
+# ============================================================================
+# Exclude Docker-related files from being copied into context
+# (prevents recursive inclusion and reduces context size)
+Dockerfile
+Dockerfile.*
+docker-compose.yml
+docker-compose.yaml
+docker-compose*.yml
+docker-compose*.yaml
+.dockerignore
+
+# ============================================================================
+# TESTING
+# ============================================================================
+# Test directories and files - not needed in production images
+tests/
+test/
+**/tests/
+**/test/
+**/*test*.py
+**/*_test.py
+**/test_*.py
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+**/__tests__/
+pytest.ini
+setup.cfg
+conftest.py
+**/conftest.py
+
+# ============================================================================
+# SCRIPTS AND UTILITIES
+# ============================================================================
+# Development and deployment scripts - not needed in runtime images
+scripts/
+Makefile
+Taskfile.yml
+
+# ============================================================================
+# CI/CD CONFIGURATION
+# ============================================================================
+# Continuous integration configuration files
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+azure-pipelines.yml
+Jenkinsfile
+bitbucket-pipelines.yml
+
+# ============================================================================
+# MISCELLANEOUS
+# ============================================================================
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.log
+
+# Archives - should never be in Docker images per security requirements
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# Compiled binaries - security risk
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Jupyter notebooks - development only
+*.ipynb
+.ipynb_checkpoints/
+
+# Local development configuration
+*.local
+*.local.*
+
+# Secrets and credentials (additional patterns)
+*.pem
+*.key
+*.crt
+*.pfx
+credentials/
+secrets/
