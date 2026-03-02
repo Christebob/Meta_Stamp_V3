@@ -18,9 +18,10 @@ comprehensive validation and type safety.
 """
 
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -84,7 +85,7 @@ class Settings(BaseSettings):
 
     port: int = Field(default=8000, description="Port number for the API server", ge=1, le=65535)
 
-    cors_origins: list[str] = Field(
+    cors_origins: Annotated[list[str], NoDecode] = Field(
         default=["http://localhost:3000"],
         description="List of allowed CORS origins for frontend access",
     )
