@@ -164,7 +164,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
 
       # MongoDB connection
-      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-metastamp_admin}:${MONGO_INITDB_ROOT_PASSWORD:-metastamp_secret_password}@mongodb:27017
+      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-metastamp_admin}:${MONGO_INITDB_ROOT_PASSWORD:-metastamp_secret_password}@mongodb:27017/?authSource=admin
       MONGODB_DB_NAME: ${MONGO_INITDB_DATABASE:-metastamp}
 
       # Redis connection
