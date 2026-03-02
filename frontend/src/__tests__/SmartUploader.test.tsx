@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -71,14 +71,6 @@ function renderSmartUploader() {
   );
 }
 
-/**
- * Creates a mock File object for testing.
- */
-function createMockFile(name: string, size: number, type: string): File {
-  const content = new Array(Math.min(size, 1000)).fill('a').join('');
-  return new File([content], name, { type });
-}
-
 // ============================================================================
 // Test Suite
 // ============================================================================
@@ -110,17 +102,12 @@ describe('SmartUploader Component', () => {
     it('may have file input', () => {
       renderSmartUploader();
       
-      // File input may be hidden but should exist
-      const fileInput = document.querySelector('input[type="file"]');
       expect(document.body).toBeInTheDocument();
     });
 
     it('may have drop zone', () => {
       renderSmartUploader();
       
-      // Drop zone may be present
-      const dropZone = document.querySelector('[data-testid="drop-zone"]') ||
-                      document.querySelector('.drop-zone');
       expect(document.body).toBeInTheDocument();
     });
 

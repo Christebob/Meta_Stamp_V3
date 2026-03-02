@@ -38,6 +38,7 @@ USERS_COLLECTION = "users"
 FINGERPRINTS_COLLECTION = "fingerprints"
 WALLET_COLLECTION = "wallet"
 ANALYTICS_COLLECTION = "analytics"
+POCKETS_COLLECTION = "pockets"
 
 
 class DatabaseClient:
@@ -339,6 +340,28 @@ class DatabaseClient:
             )
         return self._database[ANALYTICS_COLLECTION]
 
+    def get_pockets_collection(self) -> AsyncIOMotorCollection[Any]:
+        """
+        Get the pockets collection for creator snapshot registry records.
+
+        The pockets collection stores creator-submitted URL snapshots including:
+        - creator_id and content_url
+        - content_type and indexing status
+        - pull count and compensation earned
+        - extracted snapshot text and timestamps
+
+        Returns:
+            AsyncIOMotorCollection[Any]: Motor collection for pocket records.
+
+        Raises:
+            RuntimeError: If not connected to MongoDB.
+        """
+        if self._database is None:
+            raise RuntimeError(
+                "MongoDB database not available. Call connect() first or check connection status."
+            )
+        return self._database[POCKETS_COLLECTION]
+
     async def create_indexes(self) -> None:
         """
         Create database indexes for optimized query performance.
@@ -348,6 +371,7 @@ class DatabaseClient:
         - fingerprints: asset_id
         - wallet: user_id
         - analytics: asset_id, user_id
+        - pockets: creator_id, created_at, status
         - users: auth0_id (unique), email (unique)
 
         Indexes are created with background=True to avoid blocking operations.
@@ -392,6 +416,15 @@ class DatabaseClient:
             # Compound index for user analytics queries
             await analytics.create_index([("user_id", 1), ("created_at", -1)], background=True)
             logger.info(f"Created indexes on {ANALYTICS_COLLECTION} collection")
+
+            # Pockets collection indexes
+            pockets = self._database[POCKETS_COLLECTION]
+            await pockets.create_index("creator_id", background=True)
+            await pockets.create_index("status", background=True)
+            await pockets.create_index("created_at", background=True)
+            # Compound index for creator timeline queries
+            await pockets.create_index([("creator_id", 1), ("created_at", -1)], background=True)
+            logger.info(f"Created indexes on {POCKETS_COLLECTION} collection")
 
             # Users collection indexes with unique constraints
             users = self._database[USERS_COLLECTION]

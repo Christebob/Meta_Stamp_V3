@@ -81,6 +81,13 @@ from app.models.fingerprint import (
     FingerprintType,
     ProcessingStatus as FingerprintProcessingStatus,
 )
+from app.models.pocket import (
+    Pocket,
+    PocketCreateRequest,
+    PocketPullResponse,
+    PocketResponse,
+    PocketStatus,
+)
 
 # =============================================================================
 # USER MODELS
@@ -138,6 +145,11 @@ __all__ = [
     "Fingerprint",
     "FingerprintProcessingStatus",
     "FingerprintType",
+    "Pocket",
+    "PocketCreateRequest",
+    "PocketPullResponse",
+    "PocketResponse",
+    "PocketStatus",
     "ProcessingStatus",
     "TokenResponse",
     "Transaction",

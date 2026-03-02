@@ -107,6 +107,7 @@ interface NavItem {
  * - /dashboard: Main dashboard with asset stats and recent uploads
  * - /upload: File upload interface with drag-drop and URL import
  * - /assets: Asset library with filtering and management
+ * - /pockets: Creator snapshot pocket management
  * - /wallet: Wallet balance, earnings, and transaction history
  */
 const navItems: NavItem[] = [
@@ -124,6 +125,11 @@ const navItems: NavItem[] = [
     path: '/assets',
     label: 'Assets',
     icon: FolderOpen,
+  },
+  {
+    path: '/pockets',
+    label: 'Pockets',
+    icon: Shield,
   },
   {
     path: '/wallet',

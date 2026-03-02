@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -97,8 +97,6 @@ describe('Login Page', () => {
       renderLogin();
       
       await waitFor(() => {
-        const emailInput = document.querySelector('input[type="email"]') ||
-                          document.querySelector('input[name="email"]');
         // Email input may or may not be present depending on implementation
         expect(document.body).toBeInTheDocument();
       });
@@ -108,7 +106,6 @@ describe('Login Page', () => {
       renderLogin();
       
       await waitFor(() => {
-        const passwordInput = document.querySelector('input[type="password"]');
         // Password input may or may not be present depending on implementation
         expect(document.body).toBeInTheDocument();
       });
@@ -118,8 +115,6 @@ describe('Login Page', () => {
       renderLogin();
       
       await waitFor(() => {
-        const submitButton = document.querySelector('button[type="submit"]') ||
-                            document.querySelector('button');
         // Submit button may or may not be present depending on implementation
         expect(document.body).toBeInTheDocument();
       });
@@ -135,8 +130,6 @@ describe('Login Page', () => {
     it('may have form labels', () => {
       renderLogin();
       
-      // Check for any labels
-      const labels = document.querySelectorAll('label');
       expect(document.body).toBeInTheDocument();
     });
   });

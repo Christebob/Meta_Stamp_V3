@@ -11,6 +11,7 @@ the core functionality of the META-STAMP platform:
 - ai_assistant_service: LangChain multi-provider AI assistant
 - metadata_service: Comprehensive file metadata extraction
 - url_processor_service: YouTube, Vimeo, and webpage content extraction
+- pocket_service: Creator pocket snapshot indexing and pull simulation logic
 
 All services follow async patterns for non-blocking operations and are
 designed for dependency injection through FastAPI's dependency system.

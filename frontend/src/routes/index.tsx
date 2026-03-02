@@ -14,6 +14,7 @@
  *   - /dashboard → Main dashboard with asset overview
  *   - /upload → File and URL upload interface
  *   - /assets → Asset management and listing
+ *   - /pockets → Creator snapshot pocket management
  *   - /wallet → Wallet balance and transactions
  *
  * - Catch-all:
@@ -62,6 +63,12 @@ const Upload = lazy(() => import('@/pages/Upload'));
  * and delete functionality using AssetCard components.
  */
 const Assets = lazy(() => import('@/pages/Assets'));
+
+/**
+ * Pockets page - Creator snapshot registry interface.
+ * Provides URL pocket creation, status monitoring, and pull simulation.
+ */
+const Pockets = lazy(() => import('@/pages/Pockets'));
 
 /**
  * Wallet page - Financial dashboard.
@@ -157,6 +164,7 @@ function withSuspense(component: ReactNode): JSX.Element {
  * - `/dashboard` - Main dashboard with asset overview and statistics
  * - `/upload` - File and URL upload interface with hybrid architecture
  * - `/assets` - Asset management with filtering, sorting, pagination
+ * - `/pockets` - Creator pocket registry with pull compensation tracking
  * - `/wallet` - Wallet balance, transactions, and AI Touch Value™
  *
  * **Catch-all Route:**
@@ -291,6 +299,26 @@ export const routes: RouteObject[] = [
     element: withSuspense(
       <PrivateRoute>
         <Assets />
+      </PrivateRoute>
+    ),
+  },
+
+  /**
+   * Pockets page
+   *
+   * Creator pocket management interface displaying:
+   * - URL submission form for pocket creation
+   * - Pocket indexing status and source metadata
+   * - Pull count and compensation earned per pocket
+   * - Pull simulation for AI retrieval and payout updates
+   *
+   * Protected by PrivateRoute - requires user authentication.
+   */
+  {
+    path: '/pockets',
+    element: withSuspense(
+      <PrivateRoute>
+        <Pockets />
       </PrivateRoute>
     ),
   },

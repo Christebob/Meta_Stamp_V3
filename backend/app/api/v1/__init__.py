@@ -10,6 +10,7 @@ Router Structure:
     - /upload: File upload endpoints (direct, presigned URL, confirmation)
     - /fingerprint: Asset fingerprinting endpoints
     - /assets: Asset management endpoints (list, get, delete)
+    - /pockets: Creator content snapshot and pull endpoints
     - /wallet: Wallet balance and transaction history endpoints
     - /analytics: AI Touch Value(TM) calculation endpoints
     - /assistant: AI assistant chat endpoints
@@ -97,6 +98,20 @@ try:
     logger.debug("Loaded assets router")
 except ImportError as e:
     logger.warning("Assets router not available: %s", e)
+
+# Pockets Router
+try:
+    from app.api.v1.pockets import router as pockets_router
+
+    api_router.include_router(
+        pockets_router,
+        prefix="/pockets",
+        tags=["pockets"],
+    )
+    loaded_routers.append("pockets")
+    logger.debug("Loaded pockets router")
+except ImportError as e:
+    logger.warning("Pockets router not available: %s", e)
 
 # Wallet Router
 try:

@@ -7,6 +7,7 @@
  *
  * @module __tests__/test-utils
  */
+/* eslint-disable react-refresh/only-export-components */
 
 import { ReactNode, createContext } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
