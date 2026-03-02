@@ -258,6 +258,30 @@ class Settings(BaseSettings):
     )
 
     # =========================================================================
+    # MCP Server Configuration (Pockets)
+    # =========================================================================
+
+    mcp_enabled: bool = Field(
+        default=True, description="Enable the MCP server for AI agent content access"
+    )
+
+    mcp_rate_limit_per_minute: int = Field(
+        default=100, description="Default rate limit per agent per minute", ge=1, le=10000
+    )
+
+    mcp_default_price_per_pull: float = Field(
+        default=0.01, description="Default price per content pull in USD", ge=0.0, le=100.0
+    )
+
+    mcp_pocket_cache_ttl_seconds: int = Field(
+        default=3600, description="TTL for pocket snapshot cache in Redis (1 hour)", ge=60
+    )
+
+    mcp_terms_version: str = Field(
+        default="1.0.0", description="Current MCP terms of service version"
+    )
+
+    # =========================================================================
     # AI Touch Value™ Settings
     # =========================================================================
 

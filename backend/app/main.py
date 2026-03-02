@@ -39,6 +39,7 @@ from app.api.v1 import api_router
 from app.config import Settings
 from app.core.database import close_db, init_db
 from app.core.redis_client import close_redis, init_redis
+from app.mcp.server import mcp_router
 
 
 # =============================================================================
@@ -287,6 +288,9 @@ async def health_check() -> dict:
 # All endpoints are versioned under /api/v1 prefix per Agent Action Plan section 0.3
 # to support future API versions (/api/v2, /api/v3) without breaking changes.
 app.include_router(api_router, prefix="/api/v1")
+
+# Mount MCP server for AI agent content access (Pockets)
+app.include_router(mcp_router)
 
 
 # =============================================================================

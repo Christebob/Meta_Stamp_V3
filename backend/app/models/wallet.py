@@ -49,12 +49,14 @@ class TransactionType(str, Enum):
         PAYOUT: Withdrawal of funds to external payment method.
         ADJUSTMENT: Manual balance correction by administrators.
         REFUND: Return of previously paid out funds.
+        PULL: Per-pull micro-payment from AI agent to creator.
     """
 
     EARNING = "earning"
     PAYOUT = "payout"
     ADJUSTMENT = "adjustment"
     REFUND = "refund"
+    PULL = "pull"
 
 
 class TransactionStatus(str, Enum):
