@@ -208,8 +208,8 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      # Verify FastAPI is responding
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      # Verify FastAPI is responding (using python since curl is not installed in the image)
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
       interval: 15s
       timeout: 10s
       retries: 5
