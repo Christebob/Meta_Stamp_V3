@@ -33,9 +33,7 @@ services:
     ports:
       - "${MONGODB_PORT:-27017}:27017"
     environment:
-      # Root credentials for initial setup - override via .env file
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-metastamp_admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-metastamp_secret_password}
+      # Local development database name (no authentication enabled)
       MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-metastamp}
     volumes:
       # Persistent storage for database files
@@ -164,7 +162,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
 
       # MongoDB connection
-      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-metastamp_admin}:${MONGO_INITDB_ROOT_PASSWORD:-metastamp_secret_password}@mongodb:27017/?authSource=admin
+      MONGODB_URI: mongodb://mongodb:27017/?authSource=admin
       MONGODB_DB_NAME: ${MONGO_INITDB_DATABASE:-metastamp}
 
       # Redis connection
