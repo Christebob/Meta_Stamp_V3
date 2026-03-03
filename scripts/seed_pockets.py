@@ -1,12 +1,9 @@
 """
 Seed script to create demo Pockets from real websites.
 
-Usage:
-    cd backend
-    python -m scripts.seed_pockets
-
-Or from project root:
-    docker-compose exec backend python -m scripts.seed_pockets
+Usage (run inside the backend container):
+    docker cp scripts metastamp-backend:/app/scripts
+    docker-compose exec backend python /app/scripts/seed_pockets.py
 """
 
 import asyncio
@@ -15,16 +12,9 @@ import os
 import sys
 
 from datetime import UTC, datetime
-from typing import Any
-
-import httpx
-
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 
-
-# Add backend to path so imports work
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -32,85 +22,55 @@ logger = logging.getLogger(__name__)
 # -- Configuration -------------------------------------------------------------
 MONGODB_URI = os.getenv(
     "MONGODB_URI",
-    "mongodb://metastamp_admin:metastamp_secret@localhost:27017/metastamp?authSource=admin",
+    "mongodb://mongodb:27017/metastamp?authSource=admin",
 )
 DB_NAME = os.getenv("MONGODB_DB_NAME", "metastamp")
 DEMO_EMAIL = "demo@metastamp.io"
 
-SEED_URLS = [
+SEED_POCKETS = [
     {
         "url": "https://coynehockey.manus.space/",
         "label": "Coyne Hockey Academy",
+        "title": "Coyne Hockey — Private Training & Skills Development",
+        "content": (
+            "Coyne Hockey Academy — Private Training & Skills Development. "
+            "Coach Chris Coyne — former NCAA Division III hockey player, USA Hockey certified, "
+            "CEP Level 1 coach. Currently assistant coach for the Ventura Mariners 6U-8U program. "
+            "Located at Iceoplex, Simi Valley, California. "
+            "Services offered: Private 1-on-1 training sessions at $100 per hour. "
+            "Small group training rates available. "
+            "Skills covered include: skating fundamentals, edge work, power skating, "
+            "stick handling, shooting mechanics, passing accuracy, defensive positioning, "
+            "goalie-specific training, and hockey IQ development. "
+            "Training philosophy focuses on building strong foundations for young players "
+            "through repetition, game-situation drills, and confidence building. "
+            "All skill levels welcome — from first-time skaters to competitive travel players. "
+            "Contact for scheduling and availability."
+        ),
     },
     {
         "url": "https://chriscoynesings.manus.space/",
         "label": "Chris Coyne Vocal Coaching",
+        "title": "Chris Coyne Sings — Vocal Coaching & Audition Prep",
+        "content": (
+            "Chris Coyne Sings — Professional Vocal Coaching & Audition Preparation. "
+            "Coach Chris Coyne brings over 20 years of professional musical theater experience, "
+            "including 6 years performing in Las Vegas with 12 shows per week. "
+            "Teaching professionally since 2006. "
+            "Students have gone on to perform on Broadway, national tours, and Las Vegas residencies. "
+            "Located in Simi Valley, California — just 45 minutes from Hollywood. "
+            "Services offered: Private 1-on-1 vocal coaching, small group sessions, "
+            "and intensive audition preparation workshops. "
+            "Specialties include: vocal technique, belting, sight reading, "
+            "audition preparation, song interpretation, stage presence, "
+            "musical theater repertoire selection, and performance confidence. "
+            "Whether you're preparing for a Broadway audition, a school musical, "
+            "or just want to improve your singing, Chris provides personalized coaching "
+            "tailored to your goals and skill level. "
+            "Contact: 310-422-4799 | chriscoynetalent@gmail.com"
+        ),
     },
 ]
-
-DEFAULT_COMPENSATION_PER_PULL = 0.01
-
-
-# -- Minimal URL Processor ----------------------------------------------------
-async def fetch_and_extract(url: str) -> dict[str, Any]:
-    """Fetch a webpage and extract clean text content."""
-    import re
-
-    from bs4 import BeautifulSoup
-
-    result: dict[str, Any] = {
-        "success": False,
-        "platform": "webpage",
-        "url": url,
-        "text_content": "",
-        "title": "",
-        "error": None,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        # Extract title
-        title_tag = soup.find("title")
-        result["title"] = title_tag.get_text(strip=True) if title_tag else ""
-
-        # Remove non-content elements
-        for tag in soup.find_all(
-            ["script", "style", "nav", "footer", "header", "aside", "noscript", "iframe"]
-        ):
-            tag.decompose()
-
-        # Find main content
-        main_content = None
-        for selector in [
-            soup.find("main"),
-            soup.find("article"),
-            soup.find(id="content"),
-            soup.find(id="main-content"),
-            soup.find(class_="content"),
-        ]:
-            if selector:
-                main_content = selector
-                break
-
-        if main_content is None:
-            main_content = soup.find("body") or soup
-
-        text = main_content.get_text(separator=" ", strip=True)
-        text = re.sub(r"\s+", " ", text).strip()
-
-        result["text_content"] = text[:100_000]  # MAX_SNAPSHOT_LENGTH
-        result["success"] = True
-
-    except Exception as exc:
-        result["error"] = str(exc)
-        logger.error("Failed to fetch %s: %s", url, exc)
-
-    return result
 
 
 # -- Seed Logic ----------------------------------------------------------------
@@ -133,7 +93,7 @@ async def seed_pockets() -> None:
 
     pockets = db["pockets"]
 
-    for seed in SEED_URLS:
+    for seed in SEED_POCKETS:
         url = seed["url"]
         label = seed["label"]
 
@@ -143,59 +103,30 @@ async def seed_pockets() -> None:
             logger.info("Pocket already exists for %s - skipping", label)
             continue
 
-        logger.info("Indexing %s: %s", label, url)
+        logger.info("Creating Pocket: %s", label)
 
-        # Create pocket in indexing state
         now = datetime.now(UTC)
         pocket_doc = {
             "_id": ObjectId(),
             "creator_id": creator_id,
             "content_url": url,
             "content_type": "webpage",
-            "status": "indexing",
+            "status": "active",
             "pull_count": 0,
             "compensation_earned": 0.0,
-            "snapshot_text": None,
+            "snapshot_text": seed["content"],
             "error_message": None,
-            "source_metadata": {"label": label},
+            "source_metadata": {
+                "label": label,
+                "title": seed["title"],
+                "content_length": len(seed["content"]),
+                "indexed_at": now.isoformat(),
+            },
             "created_at": now,
             "updated_at": now,
         }
         await pockets.insert_one(pocket_doc)
-
-        # Fetch and extract content
-        result = await fetch_and_extract(url)
-
-        if result["success"] and result["text_content"]:
-            await pockets.update_one(
-                {"_id": pocket_doc["_id"]},
-                {
-                    "$set": {
-                        "status": "active",
-                        "snapshot_text": result["text_content"],
-                        "source_metadata": {
-                            "label": label,
-                            "title": result.get("title", ""),
-                            "content_length": len(result["text_content"]),
-                            "indexed_at": datetime.now(UTC).isoformat(),
-                        },
-                        "updated_at": datetime.now(UTC),
-                    }
-                },
-            )
-            logger.info("✅ %s - active, %d chars indexed", label, len(result["text_content"]))
-        else:
-            await pockets.update_one(
-                {"_id": pocket_doc["_id"]},
-                {
-                    "$set": {
-                        "status": "failed",
-                        "error_message": result.get("error", "Unknown error"),
-                        "updated_at": datetime.now(UTC),
-                    }
-                },
-            )
-            logger.error("❌ %s - failed: %s", label, result.get("error"))
+        logger.info("✅ %s — active, %d chars indexed", label, len(seed["content"]))
 
     # Print summary
     active_count = await pockets.count_documents({"creator_id": creator_id, "status": "active"})
