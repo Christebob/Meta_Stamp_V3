@@ -39,6 +39,9 @@ FINGERPRINTS_COLLECTION = "fingerprints"
 WALLET_COLLECTION = "wallet"
 ANALYTICS_COLLECTION = "analytics"
 POCKETS_COLLECTION = "pockets"
+AGENT_KEYS_COLLECTION = "agent_keys"
+AGREEMENTS_COLLECTION = "agreements"
+PULL_LOGS_COLLECTION = "pull_logs"
 
 
 class DatabaseClient:
@@ -362,6 +365,30 @@ class DatabaseClient:
             )
         return self._database[POCKETS_COLLECTION]
 
+    def get_agent_keys_collection(self) -> AsyncIOMotorCollection[Any]:
+        """Get the agent_keys collection for MCP agent API key storage."""
+        if self._database is None:
+            raise RuntimeError(
+                "MongoDB database not available. Call connect() first or check connection status."
+            )
+        return self._database[AGENT_KEYS_COLLECTION]
+
+    def get_agreements_collection(self) -> AsyncIOMotorCollection[Any]:
+        """Get the agreements collection for MCP agreement records."""
+        if self._database is None:
+            raise RuntimeError(
+                "MongoDB database not available. Call connect() first or check connection status."
+            )
+        return self._database[AGREEMENTS_COLLECTION]
+
+    def get_pull_logs_collection(self) -> AsyncIOMotorCollection[Any]:
+        """Get the pull_logs collection for content pull audit trail."""
+        if self._database is None:
+            raise RuntimeError(
+                "MongoDB database not available. Call connect() first or check connection status."
+            )
+        return self._database[PULL_LOGS_COLLECTION]
+
     async def create_indexes(self) -> None:
         """
         Create database indexes for optimized query performance.
@@ -425,6 +452,37 @@ class DatabaseClient:
             # Compound index for creator timeline queries
             await pockets.create_index([("creator_id", 1), ("created_at", -1)], background=True)
             logger.info(f"Created indexes on {POCKETS_COLLECTION} collection")
+
+            # Agent keys collection indexes
+            agent_keys = self._database[AGENT_KEYS_COLLECTION]
+            await agent_keys.create_index("key_hash", unique=True, background=True)
+            await agent_keys.create_index("provider", background=True)
+            await agent_keys.create_index("is_active", background=True)
+            logger.info(f"Created indexes on {AGENT_KEYS_COLLECTION} collection")
+
+            # Agreements collection indexes
+            agreements = self._database[AGREEMENTS_COLLECTION]
+            await agreements.create_index("agent_key_id", background=True)
+            await agreements.create_index("terms_version", background=True)
+            await agreements.create_index(
+                [("agent_key_id", 1), ("terms_version", 1)],
+                unique=True,
+                background=True,
+            )
+            logger.info(f"Created indexes on {AGREEMENTS_COLLECTION} collection")
+
+            # Pull logs collection indexes
+            pull_logs = self._database[PULL_LOGS_COLLECTION]
+            await pull_logs.create_index("pocket_id", background=True)
+            await pull_logs.create_index("agent_key_id", background=True)
+            await pull_logs.create_index("creator_id", background=True)
+            await pull_logs.create_index("pulled_at", background=True)
+            await pull_logs.create_index([("pocket_id", 1), ("pulled_at", -1)], background=True)
+            await pull_logs.create_index(
+                [("agent_key_id", 1), ("pulled_at", -1)],
+                background=True,
+            )
+            logger.info(f"Created indexes on {PULL_LOGS_COLLECTION} collection")
 
             # Users collection indexes with unique constraints
             users = self._database[USERS_COLLECTION]

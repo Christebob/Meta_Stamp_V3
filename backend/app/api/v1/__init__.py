@@ -113,6 +113,34 @@ try:
 except ImportError as e:
     logger.warning("Pockets router not available: %s", e)
 
+# Agents Router (MCP agent key management)
+try:
+    from app.api.v1.agents import router as agents_router
+
+    api_router.include_router(
+        agents_router,
+        prefix="/agents",
+        tags=["agents"],
+    )
+    loaded_routers.append("agents")
+    logger.debug("Loaded agents router")
+except ImportError as e:
+    logger.warning("Agents router not available: %s", e)
+
+# Agreements Router (terms and agreement status)
+try:
+    from app.api.v1.agreements import router as agreements_router
+
+    api_router.include_router(
+        agreements_router,
+        prefix="/agreements",
+        tags=["agreements"],
+    )
+    loaded_routers.append("agreements")
+    logger.debug("Loaded agreements router")
+except ImportError as e:
+    logger.warning("Agreements router not available: %s", e)
+
 # Wallet Router
 try:
     from app.api.v1.wallet import router as wallet_router
