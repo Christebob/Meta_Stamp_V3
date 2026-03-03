@@ -501,6 +501,94 @@ async def get_me(
 
 
 # =============================================================================
+# JSON Login Endpoint (Frontend-Compatible)
+# =============================================================================
+
+
+class FrontendLoginResponse(BaseModel):
+    """Response model matching the frontend LoginResponse interface."""
+
+    token: str = Field(..., description="JWT access token")
+    user: UserResponse = Field(..., description="Authenticated user profile")
+    expiresIn: int = Field(..., description="Token expiration in seconds")
+
+
+@router.post(
+    "/login/json",
+    response_model=FrontendLoginResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Authenticate user (JSON)",
+    description="JSON-based login endpoint compatible with the React frontend.",
+)
+async def login_json(
+    request: LoginRequest,
+    settings: Settings = Depends(get_settings),
+) -> FrontendLoginResponse:
+    """Authenticate user via JSON body and return frontend-compatible response."""
+    email = request.email
+    password = request.password
+
+    if not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password is required",
+        )
+
+    logger.info("JSON login attempt for email: %s", email)
+
+    try:
+        user = await authenticate_user(email, password)
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        user_id = user.get("_id") or user.get("id")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Authentication error: Invalid user data",
+            )
+
+        user_id = str(user_id)
+
+        access_token = create_access_token(
+            user_id=user_id,
+            email=email,
+            settings=settings,
+        )
+
+        session_created = await create_user_session(user_id, access_token)
+        if not session_created:
+            logger.warning("Failed to create session for user %s", user_id)
+
+        await _update_user_last_login(user_id)
+
+        user_response = _create_user_response_from_dict(user)
+        expires_in_seconds = settings.jwt_expiration_hours * 3600
+
+        logger.info("User authenticated successfully (JSON): %s", email)
+
+        return FrontendLoginResponse(
+            token=access_token,
+            user=user_response,
+            expiresIn=expires_in_seconds,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Unexpected error during JSON login for email: %s", email)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication system error. Please try again later.",
+        ) from e
+
+
+# =============================================================================
 # Module Exports
 # =============================================================================
 

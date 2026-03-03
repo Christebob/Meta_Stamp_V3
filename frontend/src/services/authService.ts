@@ -38,7 +38,7 @@ import type {
  * All endpoints are versioned under /api/v1 as per Agent Action Plan
  */
 const AUTH_ENDPOINTS = {
-  LOGIN: '/api/v1/auth/login',
+  LOGIN: '/api/v1/auth/login/json',
   LOGOUT: '/api/v1/auth/logout',
   ME: '/api/v1/auth/me',
   REFRESH: '/api/v1/auth/refresh',
