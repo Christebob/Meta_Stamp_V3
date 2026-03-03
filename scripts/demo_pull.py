@@ -2,8 +2,8 @@
 Demo script: Simulate an AI agent pulling content from a Pocket.
 
 This demonstrates the full Pockets pipeline:
-1. List available Pockets
-2. Pull content from a Pocket (showing speed)
+1. Show how slow traditional web scraping is
+2. Pull content instantly from a Pocket
 3. Show compensation credited to creator
 
 Usage:
@@ -12,10 +12,12 @@ Usage:
 
 import asyncio
 import os
+import sys
 import time
 
 from datetime import UTC, datetime
 
+import httpx
 from motor.motor_asyncio import AsyncIOMotorClient
 
 
@@ -28,6 +30,15 @@ DEMO_EMAIL = "demo@metastamp.io"
 COMPENSATION_PER_PULL = 0.01
 
 
+def slow_print(text: str, delay: float = 0.02) -> None:
+    """Print text character by character for dramatic effect."""
+    for char in text:
+        sys.stdout.write(char)
+        sys.stdout.flush()
+        time.sleep(delay)
+    print()
+
+
 async def demo() -> None:
     """Run the demo pull flow."""
     client = AsyncIOMotorClient(MONGODB_URI)
@@ -37,28 +48,101 @@ async def demo() -> None:
     users = db["users"]
     demo_user = await users.find_one({"email": DEMO_EMAIL})
     if not demo_user:
-        print("❌ Demo user not found. Run seed_pockets.py first.")
+        print("  Demo user not found. Run seed_pockets.py first.")
         client.close()
         return
 
     creator_id = str(demo_user["_id"])
-    pockets = db["pockets"]
+    pockets_coll = db["pockets"]
 
-    # List active pockets
-    print("\n" + "=" * 60)
-    print("  POCKETS - AI Content Access Demo")
+    # ── PHASE 1: Show the old way (slow web browsing) ──────────────
+    print()
+    print("=" * 60)
+    print("  POCKETS by Meta-Stamp")
+    print("  AI Content Access Demo")
     print("=" * 60)
 
-    active_pockets = await pockets.find({"creator_id": creator_id, "status": "active"}).to_list(
-        length=100
-    )
+    active_pockets = await pockets_coll.find(
+        {"creator_id": creator_id, "status": "active"}
+    ).to_list(length=100)
 
     if not active_pockets:
-        print("❌ No active Pockets found. Run seed_pockets.py first.")
+        print("  No active Pockets found. Run seed_pockets.py first.")
         client.close()
         return
 
-    print(f"\n📦 {len(active_pockets)} Active Pockets:\n")
+    print()
+    print("-" * 60)
+    slow_print("  WITHOUT Pockets: Traditional Web Scraping", 0.03)
+    print("-" * 60)
+    print()
+
+    for pocket in active_pockets:
+        url = pocket["content_url"]
+        label = pocket.get("source_metadata", {}).get("label", url)
+
+        sys.stdout.write(f"  Browsing {url} ")
+        sys.stdout.flush()
+
+        # Actually try to fetch the page to show real timing
+        browse_start = time.monotonic()
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as http:
+                resp = await http.get(url)
+                status = resp.status_code
+                body = resp.text
+        except Exception:
+            status = 0
+            body = ""
+        browse_ms = (time.monotonic() - browse_start) * 1000
+
+        # Simulate the dots while "loading"
+        print(f"... {browse_ms:.0f}ms")
+
+        # Show the problem: client-rendered React = empty content
+        from html.parser import HTMLParser
+
+        class TextExtractor(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.texts = []
+                self._skip = False
+
+            def handle_starttag(self, tag, attrs):
+                if tag in ("script", "style", "noscript"):
+                    self._skip = True
+
+            def handle_endtag(self, tag):
+                if tag in ("script", "style", "noscript"):
+                    self._skip = False
+
+            def handle_data(self, data):
+                if not self._skip:
+                    t = data.strip()
+                    if t:
+                        self.texts.append(t)
+
+        extractor = TextExtractor()
+        extractor.feed(body)
+        visible_text = " ".join(extractor.texts)
+
+        if len(visible_text) < 50:
+            print(f"     Result: Client-side React app — NO usable content")
+            print(f"     AI agent gets: \"{visible_text[:80]}\"")
+        else:
+            print(f"     Result: {len(visible_text)} chars (raw HTML noise)")
+
+        print(f"     Status: {status} | Usable by AI? NO")
+        print()
+
+    time.sleep(0.5)
+
+    # ── PHASE 2: Show Pockets (instant) ────────────────────────────
+    print("-" * 60)
+    slow_print("  WITH Pockets: Instant Indexed Content", 0.03)
+    print("-" * 60)
+
+    print(f"\n  {len(active_pockets)} Active Pockets found:\n")
     for i, pocket in enumerate(active_pockets, 1):
         label = pocket.get("source_metadata", {}).get("label", pocket["content_url"])
         chars = len(pocket.get("snapshot_text", "") or "")
@@ -74,21 +158,19 @@ async def demo() -> None:
 
     # Simulate AI agent pull
     print("-" * 60)
-    print("  🤖 Simulating AI Agent Pull...")
+    slow_print("  Simulating AI Agent Pull...", 0.03)
     print("-" * 60)
 
     for pocket in active_pockets:
         label = pocket.get("source_metadata", {}).get("label", pocket["content_url"])
         pocket_id = pocket["_id"]
 
-        # Time the pull (simulating Redis cache hit in production)
+        # Time the pull
         start = time.monotonic()
 
-        # Read snapshot (this is what the MCP layer does)
         snapshot = pocket.get("snapshot_text", "") or ""
 
-        # Increment pull count and compensation
-        await pockets.update_one(
+        await pockets_coll.update_one(
             {"_id": pocket_id},
             {
                 "$inc": {
@@ -101,23 +183,22 @@ async def demo() -> None:
 
         elapsed_ms = (time.monotonic() - start) * 1000
 
-        # Show results
-        print(f"\n  📄 {label}")
-        print(f"     ⚡ Retrieved in {elapsed_ms:.1f}ms")
-        print(f"     📏 Content: {len(snapshot):,} characters")
-        print(f"     💰 Creator credited: ${COMPENSATION_PER_PULL}")
-        preview = snapshot[:200]
-        suffix = "..." if len(snapshot) > 200 else ""
+        print(f"\n  {label}")
+        print(f"     Retrieved in {elapsed_ms:.1f}ms")
+        print(f"     Content: {len(snapshot):,} characters")
+        print(f"     Creator credited: ${COMPENSATION_PER_PULL}")
+        preview = snapshot[:150]
+        suffix = "..." if len(snapshot) > 150 else ""
         print(f"     Preview: {preview}{suffix}")
 
-    # Show updated totals
+    # ── PHASE 3: Summary ───────────────────────────────────────────
     print("\n" + "=" * 60)
     print("  Updated Pocket Stats:")
     print("=" * 60)
 
-    updated_pockets = await pockets.find({"creator_id": creator_id, "status": "active"}).to_list(
-        length=100
-    )
+    updated_pockets = await pockets_coll.find(
+        {"creator_id": creator_id, "status": "active"}
+    ).to_list(length=100)
 
     total_pulls = 0
     total_earned = 0.0
@@ -131,6 +212,7 @@ async def demo() -> None:
 
     print(f"\n  TOTAL: {total_pulls} pulls, ${total_earned:.2f} earned")
     print("=" * 60)
+    print()
 
     client.close()
 
