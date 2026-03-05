@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 
 from app.mcp.middleware import check_agreement, check_rate_limit, get_current_agent
 from app.mcp.tools import MCPTools
+from app.mcp.keymap_tools import KEYMAP_MCP_TOOLS, handle_keymap_tool
 from app.models.agent import AgentAPIKey
 
 
@@ -124,6 +125,8 @@ MCP_TOOL_MANIFEST = {
                 "required": [],
             },
         },
+        # KeyMap tools — Reprogrammable Keyboard for Creative Software
+        *[{"name": t["name"], "description": t["description"], "parameters": t["inputSchema"]} for t in KEYMAP_MCP_TOOLS],
     ],
     "terms": (
         "By connecting to this MCP server, you accept the Pockets Content License Terms. "
@@ -227,6 +230,9 @@ async def handle_jsonrpc(
                 creator_id=params.get("creator_id"),
                 limit=params.get("limit", 50),
             )
+        elif method.startswith("keymap_"):
+            # KeyMap tools are synchronous — no DB/Redis needed
+            result = handle_keymap_tool(method, params)
         else:
             return JSONResponse(
                 content=_jsonrpc_error(METHOD_NOT_FOUND, f"Method not found: {method}", request_id),

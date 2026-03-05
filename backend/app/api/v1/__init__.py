@@ -184,6 +184,20 @@ except ImportError as e:
     logger.warning("Assistant router not available: %s", e)
 
 
+# KeyMap Router (Reprogrammable Keyboard for Creative Software)
+try:
+    from app.api.v1.keymap import router as keymap_router
+
+    api_router.include_router(
+        keymap_router,
+        tags=["keymap"],
+    )
+    loaded_routers.append("keymap")
+    logger.debug("Loaded keymap router")
+except ImportError as e:
+    logger.warning("KeyMap router not available: %s", e)
+
+
 # ==============================================================================
 # Exports
 # ==============================================================================
